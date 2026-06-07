@@ -105,5 +105,11 @@ ones: frontend image bakes source (rebuild on edit); curl blocked → use httpx;
 real terminal for the macOS permission prompt; vision was found squatting on 8001 inside Docker
 (can't see the camera) — must run native.
 **State:** Phase 0 verified green end-to-end this session — all `/health` 200; E2E personalized
-assembly ~3.3s; recognition path live once native vision is started from a real terminal. Remaining
-work is Phase 1 deferred (TODO-1..TODO-5).
+assembly ~3.3s; recognition path live once native vision is started from a real terminal.
+**All 5 repos committed + pushed to `origin/main`; working trees clean.** Also finalized previously
+uncommitted Phase 0 work: `mras-ops` (compose qdrant v1.12.6 + docker-vision profile,
+run-vision-native.sh, demo mp4 assets, E2E face fixture, CLAUDE.md), `mras-composer` (overlay_text
+on assembler + DejaVu font, CLAUDE.md), `mras-display` (.gitignore, lockfile, package.json).
+**Test debt:** `mras-composer` `assemble(overlay_text=…)` was committed to main without a test
+(user-approved) — first new branch should add the failing-then-passing test per CLAUDE.md §6.
+Remaining feature work is Phase 1 deferred (TODO-1..TODO-5).
