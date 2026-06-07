@@ -70,6 +70,26 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-07 — Kiosk playback + cooldown fixes (branches/PRs in review)
+**Changes (on branches, NOT yet merged — first work under the §6 branch/TDD/PR flow):**
+- `mras-vision` branch `fix/cooldown-single-ad-10s` → PR #1: per-person cooldown changed from
+  2 ads/60s to **1 ad + 10s hold**, env-configurable (`MAX_ADS_BEFORE_COOLDOWN`, `COOLDOWN_SECS`).
+  TDD: failing cooldown test (expected 1, got 2) → changed defaults → 17 passed.
+- `mras-display` branch `fix/kiosk-ws-stability` → PR #1: `intentionalClose` guard stops the
+  reconnect storm on unmount / React StrictMode remount (the kiosk was missing `play` broadcasts
+  during reconnect gaps → personalized clip never displayed). Also surfaces `play()` errors and
+  sets Electron `autoplayPolicy: no-user-gesture-required`. TDD: failing "no reconnect after
+  unmount" test (2 sockets) → guard → 6 passed.
+**Diagnosis (evidence-backed):** backend proven correct — a held-open WS client reliably receives
+the `play` message and the video_url returns 200/713KB. So generation + broadcast work; the bug was
+kiosk-side. ElevenLabs now returns **402 Payment Required** (quota exhausted) → Gemini TTS fallback
+is carrying synthesis. Cooldown duplicate was the documented 2-ads behavior.
+**State:** both PRs review-ready, unmerged. **Manual verification pending:** check out each branch,
+restart native vision + the kiosk, confirm a walk-up plays exactly one personalized clip. After the
+PRs merge, file the outstanding `overlay_text` test (and any other unchecked items) as GitHub issues
+per §6. `adface_architecture.md` still documents "2 ads → 60s" — update when the cooldown PR merges.
+
+
 ## 2026-06-07 — Post-OS-upgrade recovery: fix tests, run-through, enroll, feed columns
 **Changes:**
 - `mras-vision@31ad695` — TODO-6: fixed Qdrant test mocks. `test_resolver` mocked `qdrant.search`
