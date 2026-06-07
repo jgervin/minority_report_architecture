@@ -63,3 +63,22 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+---
+
+## 5. Session Continuity — Maintain the Session Log
+
+**This project spans 5 repos and is demoed live; sessions die to reboots and `/clear`. Persist context.**
+
+`docs/SESSION_LOG.md` is the cross-repo engineering journal and source of truth for "what happened"
+and "how to run it." **This is mandatory for every session, skill, and agent working on MRAS:**
+
+- **At session start:** read `docs/SESSION_LOG.md` (top-to-bottom), `TODOS.md`, and
+  `adface_architecture.md` before acting.
+- **At session end, or before any likely reboot / `/clear`:** prepend a new dated entry following
+  the template in that file (changes with `repo@sha`, learnings/gotchas, state). Newest first.
+- **Keep the "Operational Reference" section current** whenever run steps, ports, topology, or
+  gotchas change.
+- Flag working-tree-only (uncommitted) changes as such; always cite `repo@sha` for committed work.
+
+If you finish meaningful work without updating the log, you have not finished.

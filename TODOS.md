@@ -91,7 +91,16 @@ restarts it. Unacceptable for a live venue.
 
 ---
 
-## TODO-6: Qdrant Exception Handling in P1 Detection Loop (Phase 0 — required)
+## TODO-6: Qdrant Exception Handling in P1 Detection Loop (Phase 0 — required) — ✅ DONE (2026-06-07)
+
+**Resolution:** The production fallback already existed in `src/identity/resolver.py` (try/except around
+`query_points`, sets `uuid=None`/`is_new_visitor=True`/`confidence=0.0`, logs `QDRANT_UNAVAILABLE`
+best-effort, pipeline continues). The real gap was the *test*: `test_resolver.py` mocked `qdrant.search`
+while the code calls `query_points`, so the fallback test passed via an accidental `TypeError` rather than
+a real exception, and the happy-path/cooldown tests silently failed. Fixed the mocks to drive `query_points`
+and added `test_qdrant_down_logs_unavailable_event`. Verified live: 56 `QDRANT_UNAVAILABLE` events were
+handled gracefully during a startup window with zero crashes, then the system auto-recovered (140 successful
+detections, latest success post-dates all errors). Commit `31ad695` in mras-vision.
 
 **What:** Add explicit `try/except QdrantException` in P1-C4's detection query path with fallback to `new_visitor=True`.
 
