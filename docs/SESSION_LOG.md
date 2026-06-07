@@ -70,12 +70,14 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
-## 2026-06-07 — Kiosk playback + cooldown fixes (branches/PRs in review)
-**Changes (on branches, NOT yet merged — first work under the §6 branch/TDD/PR flow):**
-- `mras-vision` branch `fix/cooldown-single-ad-10s` → PR #1: per-person cooldown changed from
+## 2026-06-07 — Kiosk playback + cooldown fixes (MERGED, first §6 branch/TDD/PR flow)
+**Changes (squash-merged to main via PRs, reviewed+merged by a subagent):**
+- `mras-vision@0b9deba` (PR #1, was `fix/cooldown-single-ad-10s`): per-person cooldown changed from
   2 ads/60s to **1 ad + 10s hold**, env-configurable (`MAX_ADS_BEFORE_COOLDOWN`, `COOLDOWN_SECS`).
-  TDD: failing cooldown test (expected 1, got 2) → changed defaults → 17 passed.
-- `mras-display` branch `fix/kiosk-ws-stability` → PR #1: `intentionalClose` guard stops the
+  TDD: failing cooldown test (expected 1, got 2) → changed defaults → 17 passed. NOTE: committed
+  default `COOLDOWN_SECS=10`, but the local working tree carries an intentional override to `30`
+  (uncommitted) — the operator's preferred hold.
+- `mras-display@e49a577` (PR #1, was `fix/kiosk-ws-stability`): `intentionalClose` guard stops the
   reconnect storm on unmount / React StrictMode remount (the kiosk was missing `play` broadcasts
   during reconnect gaps → personalized clip never displayed). Also surfaces `play()` errors and
   sets Electron `autoplayPolicy: no-user-gesture-required`. TDD: failing "no reconnect after
@@ -84,10 +86,11 @@ with open("alice.jpg","rb") as f:
 the `play` message and the video_url returns 200/713KB. So generation + broadcast work; the bug was
 kiosk-side. ElevenLabs now returns **402 Payment Required** (quota exhausted) → Gemini TTS fallback
 is carrying synthesis. Cooldown duplicate was the documented 2-ads behavior.
-**State:** both PRs review-ready, unmerged. **Manual verification pending:** check out each branch,
-restart native vision + the kiosk, confirm a walk-up plays exactly one personalized clip. After the
-PRs merge, file the outstanding `overlay_text` test (and any other unchecked items) as GitHub issues
-per §6. `adface_architecture.md` still documents "2 ads → 60s" — update when the cooldown PR merges.
+**State:** both PRs MERGED to main; local repos on main, in sync; no open PRs. **Manual verification
+still pending:** restart native vision + the kiosk and confirm a walk-up plays exactly one
+personalized clip. **Open follow-ups:** (1) file the outstanding `overlay_text` test as a GitHub
+issue per §6; (2) `adface_architecture.md` still documents "2 ads → 60s" — update to reflect the new
+1-ad cooldown; (3) decide whether to commit the local `COOLDOWN_SECS=30` override.
 
 
 ## 2026-06-07 — Post-OS-upgrade recovery: fix tests, run-through, enroll, feed columns
