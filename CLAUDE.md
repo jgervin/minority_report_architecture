@@ -82,3 +82,32 @@ and "how to run it." **This is mandatory for every session, skill, and agent wor
 - Flag working-tree-only (uncommitted) changes as such; always cite `repo@sha` for committed work.
 
 If you finish meaningful work without updating the log, you have not finished.
+
+---
+
+## 6. Development Workflow — Branch · TDD · Review · PR · Issues
+
+**Standard software-development process. Applies to every MRAS repo and to every session, skill,
+and agent. Use the Superpowers skills named below — invoke them, don't approximate them.**
+
+**Per task:**
+1. **Isolate the work.** Create a dedicated branch or git worktree — never implement on `main`.
+   (`superpowers:using-git-worktrees`)
+2. **TDD, red → green → refactor.** Write a failing test *first and watch it fail*, then make it
+   pass, then refactor with tests green. (`superpowers:test-driven-development`)
+3. **Request code review between tasks.** Get review before moving to the next task.
+   (`superpowers:requesting-code-review`, `superpowers:receiving-code-review`)
+4. **Finish the branch cleanly.** Run the close-out checklist before considering work shippable.
+   (`superpowers:finishing-a-development-branch`)
+
+**GitHub integration:**
+- Push commits to the task branch on the remote.
+- Open a **Pull Request per completed task batch**.
+- After the PR's review is resolved and merged, file any **remaining unchecked plan items as
+  GitHub issues** so nothing falls off the plan.
+
+**Definition of Done — do NOT mark a task complete unless ALL of these hold:**
+- A test **failed first, then passed** (red→green proven by running it, not assumed).
+- The branch is **review-ready**: diff scoped to the task, no stray changes, review requested/resolved.
+
+If the test didn't fail first, you don't have a real test, and the task is not done.

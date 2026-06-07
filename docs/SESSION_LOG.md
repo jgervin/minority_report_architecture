@@ -96,6 +96,10 @@ with open("alice.jpg","rb") as f:
 - Added `mras-ops/start-mras.sh` — one-command launcher (starts Docker → compose stack →
   health-waits → native vision in foreground). And this `docs/SESSION_LOG.md` + a journaling
   directive in the root `CLAUDE.md` (Section 5).
+- `CLAUDE.md` **Section 6 — Development Workflow**: mandatory branch/worktree isolation, TDD
+  red→green→refactor, code review between tasks, clean branch finish (Superpowers skills), GitHub
+  push + PR-per-task-batch + remaining-plan-items-as-issues, and a Definition of Done requiring a
+  test to fail-then-pass and the branch to be review-ready.
 **Learnings:** see Operational Reference above — all of it was (re)confirmed this session. Key new
 ones: frontend image bakes source (rebuild on edit); curl blocked → use httpx; camera needs a
 real terminal for the macOS permission prompt; vision was found squatting on 8001 inside Docker
