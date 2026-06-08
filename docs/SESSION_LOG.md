@@ -70,6 +70,29 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-08 — Phase 0.5 M0 built + proven end-to-end (animated overlays)
+**Changes:**
+- mras-composer PR #6 (`feat/phase-0.5-overlays-m0` → main, OPEN) — `src/overlay/{probe,spec,renderer}.py`,
+  `assembler.py` `_video_filter` (overlay compositing), `cli.py` `--overlay`/`--draw`→render→composite.
+  51 unit tests + a slow E2E. Also restored CLI pool/output-wiring to main via PR #5 (it had missed
+  the PR #4 merge).
+- **New local repo `mras-overlays`** (`176e7a2`..`0a3adb4`) — Remotion 4.0.473/React 19; `Overlay` comp
+  sized via `calculateMetadata`, `fade` preset, transparent bg, Inter. **Local only — not yet on GitHub.**
+**Learnings (load-bearing):**
+- **ProRes 4444 alone does NOT emit alpha** — Remotion defaulted to `yuv422p12le` (opaque → overlay
+  composites as a black box). Fix: pass `--pixel-format=yuva444p10le` to `remotion render` (→ `yuva444p12le`,
+  alpha present). The PNG still had alpha; only the video encode dropped it.
+- `@remotion/google-fonts` `loadFont()` with no options made ~126 network requests/render; pin
+  `loadFont("normal", {weights:["800"], subsets:["latin"]})`.
+- Run overlays repo: `MRAS_OVERLAYS_DIR` (default `/Users/jn/code/mras-overlays`) + `npm install`.
+  Render: `npx remotion render src/index.ts Overlay out.mov --props=<file> --codec=prores
+  --prores-profile=4444 --pixel-format=yuva444p10le`. ffmpeg composite uses
+  `overlay=0:0:eof_action=pass:enable='between(t,s,e)'` with `setpts=PTS+s/TB`.
+- E2E proof: red overlay text pixel-count 0 (before) / 12577 (in window) / 6 (after) — transparent,
+  windowed, base resumes. Pool clips mixed res (854×480 + 1280×720) → derive dims per-clip.
+**State:** M0 done, PR #6 open. M1 (turbulence-warp) + M2 (multi-overlay) pending. `mras-overlays` needs
+a GitHub remote created (user's call). pytest default excludes `-m slow`.
+
 ## 2026-06-08 — Approved Phase 0.5 overlay plan (Remotion → ffmpeg)
 **Changes:** `docs/superpowers/plans/2026-06-08-phase-0.5-overlays.md` — Ultraplan-refined plan for
 advertiser-authored ANIMATED text overlays. Remotion renders a transparent ProRes-4444 overlay; the
