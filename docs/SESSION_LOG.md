@@ -70,6 +70,92 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-08 — Approved Phase 0.5 overlay plan (Remotion → ffmpeg)
+**Changes:** `docs/superpowers/plans/2026-06-08-phase-0.5-overlays.md` — Ultraplan-refined plan for
+advertiser-authored ANIMATED text overlays. Remotion renders a transparent ProRes-4444 overlay; the
+Python composer composites it via ffmpeg `overlay` (`setpts`+`enable=between`+`eof_action=pass`).
+New sibling repo `mras-overlays` (Node); `assemble()` gains `overlay_inserts`; CLI gains `--overlay
+JSON` (with `--draw` back-compat). Authored remotely (ephemeral container, no remote/signing) →
+brought over as text and committed locally on branch `docs/phase-0.5-overlays-plan`.
+**Learnings:** Pool clips are **not uniform** — `standard/2/3.mp4` are 854×480, `standard4.mp4` is
+**1280×720** (all 24fps). Confirms overlay dims/fps MUST be derived per-clip (ffprobe→props→
+`calculateMetadata`), never hardcoded. Scope locked: build **all three milestones (M0–M2)**,
+fade-first, **host-CLI preview only** (no kiosk/live — per-trigger headless-Chromium render too slow).
+Overlay clip length = the overlay window (`durationMs`), not base duration.
+**State:** Plan committed locally (unsigned; docs-only). Implementation next, per-milestone PRs in
+`mras-composer` + new `mras-overlays`. `feat/assemble-cli` (PR #4) merged to composer main.
+
+## 2026-06-08 — Decided CLI pool/output wiring (read pool, write local)
+**Changes:** mras-composer PR #4 (`feat/assemble-cli`) updated — `--assets` now defaults to the
+**kiosk rotation pool** `mras-ops/assets/` (base-video source, read-only to the container but the
+host CLI only reads it); generated clips default to **`~/Desktop/mras-clips/`** (NOT the pool) via
+`resolve_output_path`. Added `--out-dir` and `--open`. Red→green commits; 32/32 pytest green.
+**Learnings (system wiring, confirmed):**
+- Composer serves TWO dirs: `/assets` (StaticFiles from `ASSETS_DIR`=`/assets`, host `mras-ops/assets`,
+  mounted `:ro`) = the **idle rotation pool** that `/playlist` lists; and `/media` (from
+  `ASSEMBLED_OUTPUT_DIR`=`/output`, a Docker named volume) = **one-shot personalized clips** pushed to
+  the kiosk via the `/trigger` WS "play". CLI/`assemble` write to the latter by default.
+- `/playlist` endpoint is **NOT on composer main** — it lives on `feat/playlist-endpoint` (composer
+  PR #2, still OPEN). Until merged, the display uses its single fallback video (no real rotation).
+- User decision: keep the kiosk pool untouched; CLI **reads** a random base from it but **writes**
+  generated clips to the **local device** (`~/Desktop/mras-clips`) for manual playback — explicitly
+  NOT into the rotating pool, and no push-to-kiosk. All pool ads (standard*.mp4) have audio, so
+  `amix` `[0:a]` is safe.
+**State:** mras-composer PR #4 open/awaiting review. Demo clip at ~/Desktop/mras-clips/demo-pooltest.mp4.
+Phase 0.5 (Remotion drawText) still pending. Composer PR #2 (/playlist) still open — not needed for
+the CLI's local-output flow.
+
+## 2026-06-08 — Landed blend/insert fixes; built assemble CLI (multi --say/--draw)
+**Changes:**
+- Merged to main: mras-display PR #3 (idle-rotation + crossfade + 250ms audio blend) and
+  mras-composer PR #3 (250ms insert offset). (display crossfade PR #4 was already merged into its
+  base earlier.)
+- mras-composer PR #4 (`feat/assemble-cli` → main, OPEN) — generalized `assemble()` to
+  `audio_inserts: list[(path, offset_ms)]` (`_audio_filter()` = one `adelay` per insert, floored at
+  250ms, `amix=inputs=N+1`); `/trigger` now passes a single insert at the floor (unchanged behavior).
+  New `src/cli.py`: `python -m src.cli --say MS TEXT ... --draw MS TEXT ... [--video|--assets] [--out]`.
+  Red→green commits; 28/28 pytest green.
+**Learnings:**
+- The CLI synthesizes each `--say` line locally with **macOS `say`** (no ElevenLabs/Gemini key needed
+  — dev/preview voice, not the prod voice). `--draw` directives are **logged, not rendered** by design;
+  real on-screen text is deferred to **Phase 0.5 (Remotion.dev)** — user flagged that plan as next.
+- End-to-end smoke (real say+ffmpeg): marks 250/1500ms measured at ~0.25/~1.50s via `silencedetect`.
+  `say`'s aiff has ~30ms intrinsic leading silence, so a 250ms mark reads ~0.28s onset — `adelay` itself
+  is exact; the slack is inside the synthesized file.
+- Composer tests still run on host `python -m pytest` (asyncio_mode=auto, no venv). No sample ad videos
+  live in the repos — the CLI's "random video" needs an `--assets` dir populated by the user.
+**State:** mras-composer PR #4 open/awaiting review; branch `feat/assemble-cli`. Listenable demos on
+~/Desktop (mras_cli_demo.mp4, mras_name_offset_demo.mp4). Phase 0.5 Remotion plan pending (later).
+
+## 2026-06-07 — Fix: name mention muted by opening audio blend (2 PRs)
+**Changes:**
+- mras-display (on `feat/kiosk-crossfade`, updates PR #4) — decouple `AUDIO_FADE_MS=250` from
+  `FADE_MS=500`: audio blends in 250ms while video fade stays 500ms, so an early name reaches full
+  volume before it can be muted. Red→green commits; 14/14 vitest green.
+- mras-composer PR #3 (`fix/insert-min-offset` → main) — `adelay=250|250` on the inserted audio
+  (ffmpeg input 1) in both overlay + default filter graphs so the name/speech never sounds in the
+  first 250ms. Default branch now maps `0:v`+`[a]` explicitly. Red→green commits; 18/18 pytest green.
+**Learnings:** The two fixes are complementary — display shortens the ramp window, composer keeps the
+insert out of it; together they guarantee an inserted name is never inside the audio crossfade. The
+250ms floor is also a client ad-prep policy (keep name out of first 250ms); the composer enforces it
+as a code safety net. Composer tests run on host `python -m pytest` (asyncio_mode=auto; no venv
+needed); ffmpeg is mocked via `create_subprocess_exec`, so tests assert on the filter_complex string.
+**State:** Both PRs open/awaiting review. mras-composer left checked out on `fix/insert-min-offset`
+(was `feat/playlist-endpoint`). No ffmpeg run end-to-end yet — adelay verified by filter-graph
+assertion, not by rendering a clip.
+
+## 2026-06-07 — Kiosk crossfade between clips (PR open)
+**Changes:** mras-display@1766c32 — `App.tsx` + `App.test.tsx`: replace hard-cut/fade-to-black
+with true crossfade (two stacked `<video>` elements, active/inactive roles that swap on each
+`play`; video + audio cross-faded over ~0.5s; faded-out element paused post-transition).
+PR #4 (`feat/kiosk-crossfade` → `feat/idle-ad-rotation`): https://github.com/jgervin/mras-display/pull/4
+**Learnings:** Two-element crossfade changes the test model — existing tests must use `activeVideo`
+and dispatch `ended` on the *active* element; the old single-"load" assertion is obsolete and was
+replaced. Implementation + the 5 migrated tests + 3 new crossfade tests all landed in one commit.
+**State:** 13/13 tests green (`npx vitest run`); branch pushed, in sync with origin; PR #4 open,
+awaiting review. (Recovered from a mid-`gh pr create` freeze — work was committed/pushed, only the
+PR creation was outstanding.)
+
 ## 2026-06-07 — Kiosk StrictMode zombie-socket fix + cooldown/doc follow-ups
 **Changes:**
 - `mras-display` PR #2 (branch `fix/kiosk-duplicate-socket`, **OPEN — verify before merge**): the
