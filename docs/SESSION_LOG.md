@@ -70,6 +70,19 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-08 — Phase 0.5 M1 + M2 done (warp preset + multi-overlay), all verified E2E
+**Changes:**
+- mras-overlays `557c182` (pushed to GitHub `jgervin/mras-overlays`, private) — `turbulence-warp`
+  preset (animated `feTurbulence`+`feDisplacementMap`, parameterized) + `Overlay` preset switch.
+- mras-composer PR #6 (`323f0d7`) — added the two-overlay chaining/indexing test. **Multi-overlay
+  support was already implemented in M0's general `_video_filter` loop**, so M2 = lock-in test + E2E.
+**Learnings:** M2 needed no new impl — building `_video_filter`/`--overlay`/`build_overlay_inserts`
+to handle N from the start in M0 meant repeated `--overlay` "just worked". E2E with two overlays
+(fade green top 0.3–1.8s + warp red bottom 2.2–4.7s) verified by region+time pixel counts: each
+present only in its own window/position. `mras-overlays` now has a GitHub remote (created this session).
+**State:** All three milestones (M0–M2) done + proven E2E. Composer PR #6 open (covers the composer
+side = M0+M2). mras-overlays main has fade+warp. Demos in ~/Desktop/mras-clips/. 52 unit + 1 slow E2E.
+
 ## 2026-06-08 — Phase 0.5 M0 built + proven end-to-end (animated overlays)
 **Changes:**
 - mras-composer PR #6 (`feat/phase-0.5-overlays-m0` → main, OPEN) — `src/overlay/{probe,spec,renderer}.py`,
