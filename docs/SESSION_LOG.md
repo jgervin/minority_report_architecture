@@ -70,6 +70,26 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-07 — Kiosk StrictMode zombie-socket fix + cooldown/doc follow-ups
+**Changes:**
+- `mras-display` PR #2 (branch `fix/kiosk-duplicate-socket`, **OPEN — verify before merge**): the
+  prior `intentionalClose` shared-ref fix had a React StrictMode race — the remount reset the flag
+  before the first socket's async `onclose` fired, so the stale socket reconnected → a **zombie 2nd
+  socket**. Both sockets received every `play` broadcast and called `playVideo` on the same
+  `<video>` within ms; the second `load()` interrupted the first `play()`, so the personalized clip
+  never settled (kiosk stuck on the standard loop). Fixed with a **per-invocation `live` closure
+  flag** + reconnect-timer cleanup; added `[kiosk]` console diagnostics. TDD: StrictMode
+  double-mount test (failed — a 3rd zombie socket spawned) → 7 passed.
+- `mras-vision` PR #2 (branch `chore/cooldown-default-30s`, OPEN): `COOLDOWN_SECS` default 10→30
+  (operator preference; env-overridable). 17 passed.
+- `mras-composer` issue #1 filed: add a test for `assemble(overlay_text=…)` (the merged-without-test debt).
+- `adface_architecture.md`: P1C4 node + decision D6 updated to "1 ad → 30s hold (configurable)".
+**State:** kiosk PR #2 **awaiting live verification** — restart the kiosk on the branch with DevTools
+open, walk up, expect `[kiosk] WS connected` → `WS message {type:'play'}` → `playing .../media/<id>.mp4`
+and the named clip on screen. cooldown PR #2 is safe to merge. Note: ElevenLabs key is out of credits
+(402) → Gemini fallback carries TTS.
+
+
 ## 2026-06-07 — Kiosk playback + cooldown fixes (MERGED, first §6 branch/TDD/PR flow)
 **Changes (squash-merged to main via PRs, reviewed+merged by a subagent):**
 - `mras-vision@0b9deba` (PR #1, was `fix/cooldown-single-ad-10s`): per-person cooldown changed from

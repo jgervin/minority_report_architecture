@@ -12,7 +12,7 @@ flowchart TD
         P1C1["Camera Capture Service\nOpenCV · RTSP/USB"]
         P1C2["Face Detection &\nEmbedding Generator\nDeepFace · ArcFace/FaceNet"]
         P1C3[("Vector DB\nQdrant / Pinecone\nEmbeddings + UUIDs")]
-        P1C4["Identity Resolution Service\nFastAPI\nUUID · Confidence · is_new_visitor\ntrigger_id · scene_context (Phase 0: {})\nPer-screen cooldown: 2 ads → 60s hold\nPOST /enroll (CSV · gateway stub)"]
+        P1C4["Identity Resolution Service\nFastAPI\nUUID · Confidence · is_new_visitor\ntrigger_id · scene_context (Phase 0: {})\nPer-screen cooldown: 1 ad → 30s hold (configurable)\nPOST /enroll (CSV · gateway stub)"]
         P1C5["LocateAnything / Demographic Inference\n(Phase 2 · Nvidia / HuggingFace)\nScene context · Age / Gender · Objects"]
     end
 
@@ -186,7 +186,7 @@ Key decisions locked during the plan-ceo-review. Do not re-litigate these withou
 | D3 | Enrollment Phase 0: CSV import via `POST /enroll` (`CSVEnrollmentSource`). Phase 1: `ReverseImageSearchGateway` stub (Google, Lenso.ai, PimEyes, EyeMatch.ai). | AbstractEnrollmentSource interface; stub raises `NotImplementedError` until Phase 1. |
 | D4 | TTS Gateway: ElevenLabs (primary) → MisoOne (backup, build now) → HuggingFace (stub). Disk cache per UUID. | Single provider is a SPOF; fallback chain + cache survives API outages. |
 | D5 | 3-tier always-on display: Standard (always) → Demographic (Phase 2, LocateAnything) → Personalized (named). Current ad keeps playing while personalized version assembles. | Display is never dark; personalized path hides assembly latency behind running content. |
-| D6 | Per-screen dedup: max 2 ads per UUID per screen, then 60s cooldown. Keyed `screen_id:uuid`. In-memory Phase 0; Redis Phase 1. | Prevents ad replay storm; cooldown is per-screen so the same person can trigger on a second screen independently. |
+| D6 | Per-screen dedup: 1 ad per UUID per screen, then a cooldown hold (`MAX_ADS_BEFORE_COOLDOWN`=1, `COOLDOWN_SECS`=30, both env-configurable). Keyed `screen_id:uuid`. In-memory Phase 0; Redis Phase 1. | Prevents back-to-back duplicate generation for someone standing in frame; cooldown is per-screen so the same person can trigger on a second screen independently. |
 | D7 | Blocklist: P2 stops personalization (falls back to StandardAd). P1 still runs face detection and embedding for learning reps. | System gets training value; blocklisted person sees a standard ad, not a blank screen. |
 | D8 | ffmpeg runs in Docker with software encoding (no VideoToolbox — macOS-only, unavailable in containers). Validate <3s empirically before building P2. See TODOS.md TODO-5. | Docker Compose uniformity for dev; M3 software encoding is fast enough for Phase 0 short clips. |
 | D9 | `trigger_id` (uuid4) propagated across all services for correlation. `scene_context` field always present in P1→P2 payload; Phase 0 value is `{}`. | Observability — every log line traceable to originating detection. Scene context is Phase 2 (LocateAnything). |
