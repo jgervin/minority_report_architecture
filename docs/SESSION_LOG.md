@@ -40,6 +40,15 @@ or agent can recover what was done, what was learned, and how to run the system.
   the camera task fails (app still serves `/enroll` and `/health` — camera is a background task).
 
 **Ports:** vision 8001, composer 8002, ops-api 8080, ops-frontend 3000, postgres 5432, qdrant 6333.
+mras-overlays render sidecar **3000 (internal `expose` only, not host-published)** — composer reaches
+it at `http://mras-overlays:3000`.
+
+**Overlay render sidecar (M3):** `mras-overlays` is a compose service (`docker compose up`/down
+governs it — no separate process). Composer renders the viewer's name as an animated overlay in
+`/trigger` via `OVERLAY_SIDECAR_URL` (default `http://mras-overlays:3000`), styled by
+`OVERLAY_TEMPLATE` (default `{name}`) + `OVERLAY_PRESET|START_MS|DURATION_MS|COLOR|POSITION`.
+**No caching** — every personalized trigger renders fresh (warm ≈ 2.9s in-container). First ~10–90s
+after startup the sidecar is still warming → overlay silently falls back to no-overlay (ad still ships).
 
 **TTS:** ElevenLabs primary → **Google Gemini** fallback (MisoOne was replaced). Keys in `mras-ops/.env`.
 
@@ -54,6 +63,9 @@ or agent can recover what was done, what was learned, and how to run the system.
 - Vision tests run via `mras-vision/.venv/bin/python -m pytest` (host pyenv 3.11 lacks deps).
 - `mras-kiosk` is a superseded scaffold — the live kiosk is `mras-display`.
 - One-command startup: `mras-ops/start-mras.sh` (starts Docker, the compose stack, then native vision).
+- **Node containers: don't `CMD ["npm","start"]`** — npm as PID 1 swallows SIGTERM so graceful
+  handlers never run. Run the binary directly (`node_modules/.bin/tsx …`) + compose `init: true`
+  (tini). The overlay sidecar does this; `docker compose stop mras-overlays` logs the graceful close.
 
 **Enroll a face (vision must be running):**
 ```python
@@ -69,6 +81,41 @@ with open("alice.jpg","rb") as f:
 ---
 
 ## Session Entries (newest first)
+
+## 2026-06-08 — Phase 0.5 M3: live-kiosk overlay render sidecar (no caching), E2E proven
+**Changes (3 PRs, none merged — awaiting review):**
+- mras-overlays PR #1 (`feat/m3-render-sidecar` @ `6398b6d`) — **warm HTTP render sidecar**
+  `src/server.ts`: `POST /render {props}→transparent .mov`, `GET /health`. `bundle()` once +
+  one reused headless Chromium (`openBrowser`); renders serialized (single-flight). prores/4444 +
+  `imageFormat:png` + `pixelFormat:yuva444p10le` for alpha. SIGTERM/SIGINT → close Chromium+server.
+  `Dockerfile` (node:22 + Chromium libs, bakes chrome-headless-shell). TDD red→green (`server.test.ts`, 4/4).
+- mras-composer PR #7 (`feat/m3-trigger-overlays` @ `3b74619`) — overlays in the **live /trigger**:
+  `src/overlay/http_renderer.py` (`render_overlay_http`/`build_overlay_inserts_http`, reuse `_props`),
+  `spec.default_overlay_spec` (name overlay via `OVERLAY_*`), `selector.AdSelection.overlay_text`
+  (from `OVERLAY_TEMPLATE`), `main.py` renders via `OVERLAY_SIDECAR_URL` then
+  `assemble(overlay_inserts=...)` — **assemble untouched**; overlay failure falls back to no-overlay.
+  TDD red→green; **62 pytest** (+10).
+- mras-ops PR #1 (`feat/m3-overlays-sidecar` @ `febbe95`) — `mras-overlays` compose service
+  (`expose 3000`, healthcheck, `init: true`, `stop_grace_period 20s`); composer gets
+  `OVERLAY_SIDECAR_URL` + `OVERLAY_*` env + `depends_on` (service_started).
+**Learnings (load-bearing):**
+- **Programmatic Remotion needs `imageFormat:"png"`** for transparency — `renderMedia` defaults to
+  JPEG (opaque) → 500 "image format is not PNG". (The CLI path set this implicitly; the sidecar must
+  pass it explicitly, alongside `pixelFormat:yuva444p10le`.)
+- **`npm start` as PID 1 swallows SIGTERM** → the Node graceful handler never fired in-container.
+  Fix: `CMD ["node_modules/.bin/tsx","src/server.ts"]` (Node is the signal target) + compose
+  `init: true` (tini forwards SIGTERM, reaps Chromium). Then `docker compose stop` logs
+  "SIGTERM received — closing server + Chromium". **The sidecar is a compose service**, so
+  up/Ctrl-C/down start+stop it with the stack — NOT a separate manual process.
+- **No caching** (user decision, overrides the brief's spec-hash cache): content is per-viewer/visit,
+  nothing stable to cache; the warm sidecar is the latency lever. Warm render ≈ **1.5s host / 2.9s
+  in-container**; cold-start warm-up ≈ first ~10–90s (triggers fall back to no overlay until ready).
+- **Kiosk needs no change** — overlay is burned into the mp4 server-side; `mras-display` just plays the URL.
+- Build warning (non-fatal): Remotion suggests pinning exact `zod` — left as-is (`^3.23.8`) since it works.
+**State:** All 3 PRs open. **Headless E2E PROVEN on the real containers** (no camera): seeded `Jason`
+identity → `POST /trigger` → `{status:ok}`; composer `POST mras-overlays:3000/render "200 OK"`;
+sidecar `rendered "Jason" (turbulence-warp) in 2886ms`; `ffprobe /output/m3-e2e.mp4` = h264/yuv420p
+854×480 8.1s (overlay composited, no alpha leak); `compose stop` → graceful SIGTERM. Stack left up.
 
 ## 2026-06-08 — Phase 0.5 M1 + M2 done (warp preset + multi-overlay), all verified E2E
 **Changes:**
