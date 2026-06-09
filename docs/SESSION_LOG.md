@@ -75,6 +75,11 @@ a fresh DB).
 - **Node containers: don't `CMD ["npm","start"]`** — npm as PID 1 swallows SIGTERM so graceful
   handlers never run. Run the binary directly (`node_modules/.bin/tsx …`) + compose `init: true`
   (tini). The overlay sidecar does this; `docker compose stop mras-overlays` logs the graceful close.
+- **Raw `git`/`gh` is blocked in all 5 CLAUDE.md repos** by a PreToolUse guard
+  (`.claude/hooks/guard-git.sh`). The main agent must delegate to the `git-flow-manager` subagent; the
+  subagent opts in by prefixing commands with `CLAUDE_GIT_OK=1` (e.g. `CLAUDE_GIT_OK=1 git status`).
+  Pushing to `main` is denied even with the marker — land via `gh pr merge` after review. A "Raw git/gh
+  is disabled" error means: delegate, don't fight it.
 
 **Enroll a face (vision must be running):**
 ```python
@@ -90,6 +95,46 @@ with open("alice.jpg","rb") as f:
 ---
 
 ## Session Entries (newest first)
+
+## 2026-06-09 — Git workflow guardrails: worktree-per-ticket rules + git-flow-manager subagent + PreToolUse guard
+Standardized Git discipline across all 5 MRAS repos that have a `CLAUDE.md`
+(`minority_report_architecture`, `mras-composer`, `mras-kiosk`, `mras-ops`, `mras-vision`).
+`mras-display` and `mras-overlays` were **skipped — they have no `CLAUDE.md`.** Goal: stop agents
+stepping on each other's branches / touching `main`. Three commits per repo (all on `main`; the
+rules themselves are the bootstrap, so they were committed directly):
+**Changes (per repo: rules → agent → guard):**
+- `minority_report_architecture@cd67a96` → `@c5698f7` → `@d846a08`
+- `mras-composer@2cf1424` → `@809385e` → `@c527940`
+- `mras-kiosk@7507452` → `@04f7600` → `@284cf34`
+- `mras-ops@11fdef8` → `@8a36b1e` → `@a14f2ca`
+- `mras-vision@dc65827` → `@a528918` → `@b48f985`
+**What landed:**
+1. **CLAUDE.md "Git & Branching Rules"** — branch off `main` as `{type}/{ticket}-{slug}`, one worktree
+   per ticket (`claude -w feat/TKT-…` → `.claude/worktrees/feat-TKT-…/`), `start ticket` / `open PR` /
+   `finish ticket` lifecycle, stacked-PR handling, and "main agent must delegate all git to the
+   `git-flow-manager` subagent."
+2. **`.claude/agents/git-flow-manager.md`** — the sole sanctioned Git operator. **Replaced** a stale
+   Git Flow agent (develop/release/hotfix, no worktrees) that pre-existed untracked in composer/ops and
+   contradicted the new model. Same content in all 5 repos (kept the filename per user request).
+3. **PreToolUse guard** (`.claude/hooks/guard-git.sh` + `.claude/settings.json`) — denies raw `git`/`gh`
+   in the session; the subagent opts in with the `CLAUDE_GIT_OK=1` marker; **pushing to `main` is
+   hard-blocked even with the marker.** `.gitignore` now tracks `.claude/{agents,hooks}/` +
+   `settings.json` while keeping `.claude/worktrees/` and `settings.local.json` ignored.
+**Learnings / gotchas:**
+- **The guard activated live mid-session** the moment `.claude/settings.json` was written in the cwd
+  repo — the settings watcher picked it up without a restart. Verified end-to-end: marker-free `git log`
+  → denied; `CLAUDE_GIT_OK=1 git log` → allowed. For the *other* repos the hook activates when a Claude
+  session next starts there (committed settings load at startup).
+- **Marker scope is whole-command:** a single Bash call is allowed if `CLAUDE_GIT_OK=1` appears anywhere
+  in it (one combined echo+git demo leaked through because a later clause carried the marker). Run the
+  deny case as its own marker-free call.
+- All 5 repos default to `main` with **no `develop`/`master`** anywhere (local or remote) — the
+  branch-off-`main` model matches reality.
+- Not adversarial-proof (an agent could read the marker); it stops *accidental* raw git. The
+  `main`-push block is the one rule that holds regardless of marker.
+**State:** Live and verified in `minority_report_architecture` this session; committed in all 5 repos.
+Pending: nothing required. Optional follow-ups offered — relax guard to mutation-only if read-only
+denies get noisy; rename `git-flow-manager.md` (content is ticket/worktree, not classic Git Flow).
 
 ## 2026-06-09 — Delete ads/components: live E2E fixes + reconciled with M5, MERGED to main
 Debugged a live-demo failure (delete buttons broken) with systematic debugging + Playwright E2E.
