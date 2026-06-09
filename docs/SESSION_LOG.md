@@ -91,6 +91,40 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-09 — M5 Task 1: sidecar emits a real props JSON schema (isolated child process), merged
+M5 (Authoring props-display) Task 1 done via spike → TDD → code-review → merge. Goal: the sidecar
+returns a populated `propsSchema` per uploaded component so the Authoring UI can render labeled,
+default-filled prop fields (Tasks 2–3 still pending — see spec
+`/Users/jn/code/minority_report_architecture/docs/superpowers/specs/2026-06-09-m5-props-display.md`).
+**Changes (by repo):**
+- mras-overlays: **PR #8 merged to main** (`origin/main` @ `aa8011f`). `POST /components`
+  (`registerComponent` in `/Users/jn/code/mras-overlays/src/server.ts`) now returns a real
+  `propsSchema` instead of `{}`, via new `/Users/jn/code/mras-overlays/src/extractPropsSchema.ts`
+  → `zod-to-json-schema`. New dep `zod-to-json-schema@^3.25.2` in `package.json`. TDD history
+  preserved: `0d5d7d0` (feat/green) ← `fc47596` (test/red) ← `373331c` (fix/green).
+**Learnings / gotchas:**
+- The M5 spec's feared blocker — "the named `schema` export isn't reachable via runtime dynamic
+  import" — **did not reproduce**. Under `tsx`, a plain `import(pathToFileURL(file).href)` surfaces
+  BOTH `default` and `schema`. The old finding was a browser-bundle/CJS artifact.
+- **Extraction runs in a disposable `node --import tsx` child process**
+  (`/Users/jn/code/mras-overlays/src/extractPropsSchemaWorker.ts`), NOT in-process. This was the fix
+  for two code-review findings on PR #8: (1) importing advertiser code in the long-lived sidecar runs
+  untrusted code in-process; (2) the original `?v=${Date.now()}` cache-buster leaked one ESM
+  module-registry entry per upload (no unload API). The child process is SIGKILL'd on a 5s timeout,
+  has a fresh module registry that dies on exit (so upsert freshness is intrinsic — no cache-buster),
+  and prints JSON after a sentinel (`__PROPS_SCHEMA_JSON__`) so a component printing at import time
+  can't corrupt the parse. Any failure/timeout/non-zod → `{}` → UI JSON-textarea fallback.
+- Repo transforms `.ts` → CJS (no top-level await in worker; wrap in `main()`). Worker must live
+  INSIDE the repo so its bare `zod`/`zod-to-json-schema` imports resolve. `customDir` is
+  `<repo>/src/custom`, so uploaded components' bare `import { z } from "zod"` resolve too.
+- **Op step:** the new dep means the sidecar image must be rebuilt before live use:
+  `cd /Users/jn/code/mras-ops && docker compose up -d --build mras-overlays`.
+**State:** sidecar suite 22/22. Verified live against `FishSwim.tsx` + `HelloName.tsx` (correct
+schemas) via the worker + unit suite; NOT yet exercised through the running Docker sidecar (needs the
+rebuild above). Spike artifacts (worktree `/Users/jn/code/mras-overlays-spike-m5`, branch
+`spike/m5-schema-extraction`) and task worktree `/Users/jn/code/mras-overlays-m5` are leftover and can
+be cleaned up. Next: M5 Task 2 (frontend schema-driven prop fields), Task 3 (live E2E).
+
 ## 2026-06-09 — M4 follow-on hardening + live-demo UX fixes (all merged to main)
 Iterating with the user driving the kiosk/authoring live. All PRs below merged to `main`; stacks
 merged in dependency order; containers rebuilt as noted.
