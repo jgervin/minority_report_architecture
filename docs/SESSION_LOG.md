@@ -91,6 +91,43 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-09 — M4 follow-on hardening + live-demo UX fixes (all merged to main)
+Iterating with the user driving the kiosk/authoring live. All PRs below merged to `main`; stacks
+merged in dependency order; containers rebuilt as noted.
+**Changes (by repo):**
+- mras-composer: #14 CORS allow POST (browser `/preview`); #15 `/preview` lookup inside try (bad
+  component_id → graceful `{"error"}`, not a CORS-less 500); #16 strip whitespace from `base_video`;
+  #17 `/preview` overlay defaults to **full base duration** + `app.state.http` timeout → 180s.
+- mras-overlays: #6 **11 example overlay components** merged to `examples/` (FallingSnow, Typewriter,
+  LightLeak, ConfettiBurst, RisingBubbles, PeekerCharacter, FishSwim, LowerThirdBanner, ShootingStars,
+  Fireflies, KineticText) + HelloName; #7 **apply zod schema defaults** at render (`withSchemaDefaults`
+  in `Root` calculateMetadata + render with `composition.props`).
+- mras-ops: #5 Authoring/Activity-Feed **tabs**; #6 **"?" help panel**; #7 `/components` returns the DB
+  **uuid** (not `comp-<slug>`) + editable Props-JSON textarea; #8 trim base_video (frontend); #9
+  **bind-mount `/output` → `/Users/jn/code/mras-ops/output/`** (clips now in a real Finder folder; the
+  `output_data` named volume removed); #10 **Create Ad auto-renders + pops up the finished ad** (+ per-ad
+  ▶ preview); #11 **base-video dropdown** from the pool (no free-text; via `/playlist`).
+- mras-display: #5 fix idle-loop freeze (duplicate mount-time `playCurrentIdle`) + DevTools no longer
+  auto-opens (gate `KIOSK_DEVTOOLS=1`); #6 click-to-pause/resume the idle loop.
+- minority_report_architecture: CLAUDE.md **§0 — always reference files by absolute path**.
+**Learnings / gotchas (load-bearing):**
+- **Remotion does NOT apply a zod schema's `.default()` to inputProps at render.** Omitted optional
+  props arrive `undefined` → NaN (e.g. blank FallingSnow). Fix: parse props through the component
+  schema in `Root`'s `calculateMetadata` and render with `composition.props`.
+- **Custom overlays render blank unless props are complete** — verified via raw-alpha pixel counts
+  (0 opaque = blank; ~9k = snow). Validate overlays by rendering + counting opaque/alpha pixels.
+- **Preview overlay must span the base duration**, else it's a ~2s flash that looks like "no overlay".
+- **`output/` is now a host bind-mount** at `/Users/jn/code/mras-ops/output/` (gitignored). Generated +
+  preview clips land there directly — no `docker cp`. (Old clips lived in the hidden `output_data` volume.)
+- **Props-display is blocked**: a component's named `schema` export is NOT exposed when the sidecar
+  dynamically imports the `.tsx` at runtime (only `default` comes through). Showing per-prop form fields
+  needs build/upload-time schema extraction (zod-to-json-schema) — deferred, not yet built.
+- `/preview` is browser-called → composer CORS must allow POST. Component id sent to `/preview` must be
+  the **DB uuid**, not the composition id `comp-<slug>`.
+**State:** Authoring flow works end-to-end: upload component → (defaults applied) → create ad →
+auto-popup of the finished, personalized ad; base video chosen from a dropdown; clips in
+`/Users/jn/code/mras-ops/output/`. Kiosk loops + pauses on click. Open item: props-display form.
+
 ## 2026-06-08 — Phase 0.5 M4 COMPLETE: custom-component ad authoring (speed-first, security deferred), E2E proven
 **M3 first merged to main** (overlays #1, composer #7, ops #1) so M4 branches off clean mains.
 **7 PRs open (stacked; none merged — awaiting review). Merge in dependency order:**
