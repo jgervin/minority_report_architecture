@@ -40,6 +40,24 @@ or agent can recover what was done, what was learned, and how to run the system.
   the camera task fails (app still serves `/enroll` and `/health` — camera is a background task).
 
 **Ports:** vision 8001, composer 8002, ops-api 8080, ops-frontend 3000, postgres 5432, qdrant 6333.
+mras-overlays render sidecar **3000 (internal `expose` only, not host-published)** — composer reaches
+it at `http://mras-overlays:3000`.
+
+**Overlay render sidecar (M3):** `mras-overlays` is a compose service (`docker compose up`/down
+governs it — no separate process). Composer renders the viewer's name as an animated overlay in
+`/trigger` via `OVERLAY_SIDECAR_URL` (default `http://mras-overlays:3000`), styled by
+`OVERLAY_TEMPLATE` (default `{name}`) + `OVERLAY_PRESET|START_MS|DURATION_MS|COLOR|POSITION`.
+**No caching** — every personalized trigger renders fresh (warm ≈ 2.9s in-container). First ~10–90s
+after startup the sidecar is still warming → overlay silently falls back to no-overlay (ad still ships).
+
+**Custom-component authoring (M4 — branches, not yet merged):** advertisers upload a Remotion `.tsx`
+(via ops-frontend → ops-api `POST /components` → sidecar bundles once, registers `comp-<slug>`), bind
+it to an **ad** (`ads` table: base_video + component + default_props + personalized_field + is_active),
+and an identified viewer's `/trigger` renders the bound custom component (warm, ~1.1s) with their name.
+Sidecar `POST /render` takes `{compositionId, props}`; uploaded components persist on the
+`custom_components` volume. **No sandbox/security yet** — advertiser code runs un-isolated (deferred).
+Apply migration `002_custom_components.sql` manually on an existing DB volume (init scripts run only on
+a fresh DB).
 
 **TTS:** ElevenLabs primary → **Google Gemini** fallback (MisoOne was replaced). Keys in `mras-ops/.env`.
 
@@ -54,6 +72,9 @@ or agent can recover what was done, what was learned, and how to run the system.
 - Vision tests run via `mras-vision/.venv/bin/python -m pytest` (host pyenv 3.11 lacks deps).
 - `mras-kiosk` is a superseded scaffold — the live kiosk is `mras-display`.
 - One-command startup: `mras-ops/start-mras.sh` (starts Docker, the compose stack, then native vision).
+- **Node containers: don't `CMD ["npm","start"]`** — npm as PID 1 swallows SIGTERM so graceful
+  handlers never run. Run the binary directly (`node_modules/.bin/tsx …`) + compose `init: true`
+  (tini). The overlay sidecar does this; `docker compose stop mras-overlays` logs the graceful close.
 
 **Enroll a face (vision must be running):**
 ```python
@@ -69,6 +90,162 @@ with open("alice.jpg","rb") as f:
 ---
 
 ## Session Entries (newest first)
+
+## 2026-06-09 — M4 follow-on hardening + live-demo UX fixes (all merged to main)
+Iterating with the user driving the kiosk/authoring live. All PRs below merged to `main`; stacks
+merged in dependency order; containers rebuilt as noted.
+**Changes (by repo):**
+- mras-composer: #14 CORS allow POST (browser `/preview`); #15 `/preview` lookup inside try (bad
+  component_id → graceful `{"error"}`, not a CORS-less 500); #16 strip whitespace from `base_video`;
+  #17 `/preview` overlay defaults to **full base duration** + `app.state.http` timeout → 180s.
+- mras-overlays: #6 **11 example overlay components** merged to `examples/` (FallingSnow, Typewriter,
+  LightLeak, ConfettiBurst, RisingBubbles, PeekerCharacter, FishSwim, LowerThirdBanner, ShootingStars,
+  Fireflies, KineticText) + HelloName; #7 **apply zod schema defaults** at render (`withSchemaDefaults`
+  in `Root` calculateMetadata + render with `composition.props`).
+- mras-ops: #5 Authoring/Activity-Feed **tabs**; #6 **"?" help panel**; #7 `/components` returns the DB
+  **uuid** (not `comp-<slug>`) + editable Props-JSON textarea; #8 trim base_video (frontend); #9
+  **bind-mount `/output` → `/Users/jn/code/mras-ops/output/`** (clips now in a real Finder folder; the
+  `output_data` named volume removed); #10 **Create Ad auto-renders + pops up the finished ad** (+ per-ad
+  ▶ preview); #11 **base-video dropdown** from the pool (no free-text; via `/playlist`).
+- mras-display: #5 fix idle-loop freeze (duplicate mount-time `playCurrentIdle`) + DevTools no longer
+  auto-opens (gate `KIOSK_DEVTOOLS=1`); #6 click-to-pause/resume the idle loop.
+- minority_report_architecture: CLAUDE.md **§0 — always reference files by absolute path**.
+**Learnings / gotchas (load-bearing):**
+- **Remotion does NOT apply a zod schema's `.default()` to inputProps at render.** Omitted optional
+  props arrive `undefined` → NaN (e.g. blank FallingSnow). Fix: parse props through the component
+  schema in `Root`'s `calculateMetadata` and render with `composition.props`.
+- **Custom overlays render blank unless props are complete** — verified via raw-alpha pixel counts
+  (0 opaque = blank; ~9k = snow). Validate overlays by rendering + counting opaque/alpha pixels.
+- **Preview overlay must span the base duration**, else it's a ~2s flash that looks like "no overlay".
+- **`output/` is now a host bind-mount** at `/Users/jn/code/mras-ops/output/` (gitignored). Generated +
+  preview clips land there directly — no `docker cp`. (Old clips lived in the hidden `output_data` volume.)
+- **Props-display is blocked**: a component's named `schema` export is NOT exposed when the sidecar
+  dynamically imports the `.tsx` at runtime (only `default` comes through). Showing per-prop form fields
+  needs build/upload-time schema extraction (zod-to-json-schema) — deferred, not yet built.
+- `/preview` is browser-called → composer CORS must allow POST. Component id sent to `/preview` must be
+  the **DB uuid**, not the composition id `comp-<slug>`.
+**State:** Authoring flow works end-to-end: upload component → (defaults applied) → create ad →
+auto-popup of the finished, personalized ad; base video chosen from a dropdown; clips in
+`/Users/jn/code/mras-ops/output/`. Kiosk loops + pauses on click. Open item: props-display form.
+
+## 2026-06-08 — Phase 0.5 M4 COMPLETE: custom-component ad authoring (speed-first, security deferred), E2E proven
+**M3 first merged to main** (overlays #1, composer #7, ops #1) so M4 branches off clean mains.
+**7 PRs open (stacked; none merged — awaiting review). Merge in dependency order:**
+- mras-overlays PR #3 (`feat/m4-dynamic-components` @ `4449562`) — dynamic custom-component registry
+  (`writeComponent`/`regenerateManifest` → static `src/custom/registry.ts`; `Root` registers
+  `comp-<slug>` comps), `POST /components` (write→hot re-bundle→validate, keep prior serveUrl on fail,
+  serialized via the render queue, empty-slug guard), `POST /render {compositionId,props}`.
+- mras-ops PR #2 (`feat/m4-registry-api` @ `e7c7dbe`) — migration `002_custom_components.sql`
+  (`components`,`ads`); ops-api `POST /components` (multipart→proxy to sidecar→upsert; 502 on sidecar
+  error; 120s httpx timeout), `GET /components`, `POST/GET/PATCH /ads`.
+- mras-composer PR #9 (`feat/m4-render-seam` @ `b9adb45`) — `render_composition_http(client,url,
+  composition_id,props,work)` seam (`render_overlay_http` delegates); `conformance.assert_conformant`
+  (dims+alpha, raises `ConformanceError`; malformed-ffprobe guarded).
+- mras-composer PR #10 (`feat/m4-preview` @ `f45bc3f`, base #9) — `assemble` supports `audio_inserts=[]`
+  (no `amix`; `-map 0:a?`); `POST /preview` (render custom comp + composite, no audio → mp4 url; whole
+  body in try→`{"error":...}`).
+- mras-composer PR #11 (`feat/m4-trigger-custom-ad` @ `76282e6`, base #10) — `AdSelection.composition_id`
+  +`overlay_props`; selector picks active `is_active`+`ready` ad (joins components) for identified
+  viewers, fills `personalized_field` with the name; `/trigger` renders the custom comp via
+  `build_custom_overlay_inserts` → `assemble(overlay_inserts=…)`; failure → no-overlay fallback (voice
+  still plays); unidentified → standard, no broadcast (idle pool loops).
+- mras-ops PR #3 (`feat/m4-authoring-ui` @ `97ca7c6`, base #2) — ops-frontend authoring page (vitest +
+  testing-library added): upload component (status), schema-driven prop form, base picker, Preview
+  (`<video>`), create/list ads. Uses `VITE_OPS_API_URL`/`VITE_COMPOSER_URL` (default localhost 8080/8002).
+- mras-ops PR #4 (`feat/m4-compose-e2e`, base #3) — compose: `custom_components` volume on the sidecar,
+  ops-api gets `OVERLAY_SIDECAR_URL` + `depends_on` sidecar.
+**E2E PROVEN (real containers, no camera):** upload `HelloName.tsx` → `comp-helloname` `ready` → create
+ad (standard.mp4 + comp + personalize `text`, active) → seed `Jason` → `POST /trigger` → `{status:ok}`;
+composer `POST mras-overlays:3000/render "200 OK"`; sidecar `rendered composition "comp-helloname" in
+1098ms`; `ffprobe /output/m4-e2e.mp4` = h264/yuv420p 854×480 (composited, no alpha leak).
+**Learnings / gotchas:**
+- **Security is OUT of scope this milestone** (user decision: speed #1, not production, Remotion may not
+  be final, no AWS). NO sandbox/isolation, NO static code analysis — advertiser code runs in the warm
+  sidecar's Node (bundle) + Chromium (render). Forward hooks kept: the **render-backend seam** (swap in
+  isolation/remote later) + **output-conformance** (correctness). Going live REQUIRES the isolation
+  milestone first. Filed as issues.
+- **Wire-contract coupling:** the sidecar `/render` and composer both moved to `{compositionId, props}`
+  — **overlays PR #3 and composer PR #9 must merge together** or the live path breaks.
+- **Composition ids use `comp-<slug>` (hyphen)** — Remotion forbids underscores in composition ids.
+- **Bundle-once-at-upload** keeps per-trigger warm (~1.1s observed); custom renders are NOT cached.
+- **Migration 002 won't auto-apply** to an existing postgres volume (init scripts run only on a fresh
+  DB) — apply manually: `docker compose exec -T postgres psql -U mras -d mras -f
+  /docker-entrypoint-initdb.d/002_custom_components.sql`.
+- Pre-existing: `events.trigger_id` is a UUID column → `DB event log failed: invalid UUID 'm4-e2e'`
+  when a non-UUID trigger_id is used; trigger still returns ok. Filed as a follow-up.
+**Spec:** `docs/superpowers/specs/2026-06-08-m4-custom-component-authoring-design.md`;
+**Plan:** `docs/superpowers/plans/2026-06-08-m4-custom-component-authoring.md`.
+**State:** **all 7 PRs MERGED to main** (overlays #3; composer #9,#10,#11; ops #2,#3,#4) — merged in
+dependency order with merge commits (red→green history preserved). Note: composer #10 (preview) shows
+GitHub-"closed" not "merged" — its commits reached main via the stacked child #11 (deleting #9's branch
+auto-closed its child; lesson: don't `--delete-branch` on stacked PRs — retarget children to main
+first). Post-merge mains verified: overlays 15 tests, composer 76 tests, ops compose-config valid.
+Migration 002 still requires manual application on existing DB volumes. Stack left running.
+
+## 2026-06-08 — Phase 0.5 M4 Task 1: dynamic custom-component registry + render-by-id
+**Changes:**
+- mras-overlays PR #3 (`feat/m4-dynamic-components` @ `3fdaf72`) — **dynamic custom component registration**
+  - `src/components.ts`: `slugify`, `writeComponent`, `regenerateManifest` — writes `src/custom/<slug>.tsx`,
+    regenerates the webpack-analyzable static manifest (`src/custom/registry.ts`).
+  - `src/customRegistry.ts`: re-export from `src/custom/registry.ts` (stable import path).
+  - `src/custom/registry.ts`: auto-generated manifest (initially empty); updated by `regenerateManifest`.
+  - `src/Root.tsx`: maps `customComponents` array into additional `<Composition>`s with same `calculateMetadata`.
+  - `src/server.ts`: `ServerDeps` gains `registerComponent(name,source)→RegisterResult`; `render` sig
+    changed to `(compositionId, props)`; `POST /components` (200 ready, 422 failed, 400 bad input);
+    `POST /render` body now `{compositionId, props}` (default `"Overlay"`; overlay-only schema validation).
+    `makeWarmRenderer`: re-bundles + `selectComposition` validates on registration; swaps `serveUrl` only
+    on success, leaving prior URL intact on failure.
+  - TDD red→green: 13/13 tests (`components.test.ts` + extended `server.test.ts`).
+  - Smoke: `examples/HelloName.tsx` registered as `comp-helloname`, rendered to `.mov`,
+    `ffprobe pix_fmt: yuva444p12le` ✓.
+
+**Learnings / Gotchas:**
+- **Remotion forbids underscores in composition IDs** (`a-z, A-Z, 0-9, CJK, -` only).
+  Spec said `comp_<slug>` — had to use `comp-<slug>` for the Remotion id.
+  JS variable names in the generated manifest still use `comp_<ident>` (underscores fine there).
+- `src/custom/registry.ts` must be a *statically analyzable* import manifest — no dynamic `require`.
+  Remotion's webpack bundler needs to see literal import paths at parse time.
+- `calculateMetadata` on custom compositions typed as `(opts: {props: any})` cast to avoid TS error
+  (Remotion's generic `CalculateMetadataFunction<Record<string,unknown>>` doesn't match a typed subset).
+- `ffprobe` reports `yuva444p12le` (not `yuva444p10le`) on this macOS Chromium build — both are correct
+  alpha-preserving pixel formats; ProRes 4444 supports both.
+
+**State:** superseded by the "M4 COMPLETE" entry above (PR #3 head later `4449562` after C1/C2 review fixes). M3 has since been merged to main.
+
+## 2026-06-08 — Phase 0.5 M3: live-kiosk overlay render sidecar (no caching), E2E proven
+**Changes (3 PRs, none merged — awaiting review):**
+- mras-overlays PR #1 (`feat/m3-render-sidecar` @ `6398b6d`) — **warm HTTP render sidecar**
+  `src/server.ts`: `POST /render {props}→transparent .mov`, `GET /health`. `bundle()` once +
+  one reused headless Chromium (`openBrowser`); renders serialized (single-flight). prores/4444 +
+  `imageFormat:png` + `pixelFormat:yuva444p10le` for alpha. SIGTERM/SIGINT → close Chromium+server.
+  `Dockerfile` (node:22 + Chromium libs, bakes chrome-headless-shell). TDD red→green (`server.test.ts`, 4/4).
+- mras-composer PR #7 (`feat/m3-trigger-overlays` @ `3b74619`) — overlays in the **live /trigger**:
+  `src/overlay/http_renderer.py` (`render_overlay_http`/`build_overlay_inserts_http`, reuse `_props`),
+  `spec.default_overlay_spec` (name overlay via `OVERLAY_*`), `selector.AdSelection.overlay_text`
+  (from `OVERLAY_TEMPLATE`), `main.py` renders via `OVERLAY_SIDECAR_URL` then
+  `assemble(overlay_inserts=...)` — **assemble untouched**; overlay failure falls back to no-overlay.
+  TDD red→green; **62 pytest** (+10).
+- mras-ops PR #1 (`feat/m3-overlays-sidecar` @ `febbe95`) — `mras-overlays` compose service
+  (`expose 3000`, healthcheck, `init: true`, `stop_grace_period 20s`); composer gets
+  `OVERLAY_SIDECAR_URL` + `OVERLAY_*` env + `depends_on` (service_started).
+**Learnings (load-bearing):**
+- **Programmatic Remotion needs `imageFormat:"png"`** for transparency — `renderMedia` defaults to
+  JPEG (opaque) → 500 "image format is not PNG". (The CLI path set this implicitly; the sidecar must
+  pass it explicitly, alongside `pixelFormat:yuva444p10le`.)
+- **`npm start` as PID 1 swallows SIGTERM** → the Node graceful handler never fired in-container.
+  Fix: `CMD ["node_modules/.bin/tsx","src/server.ts"]` (Node is the signal target) + compose
+  `init: true` (tini forwards SIGTERM, reaps Chromium). Then `docker compose stop` logs
+  "SIGTERM received — closing server + Chromium". **The sidecar is a compose service**, so
+  up/Ctrl-C/down start+stop it with the stack — NOT a separate manual process.
+- **No caching** (user decision, overrides the brief's spec-hash cache): content is per-viewer/visit,
+  nothing stable to cache; the warm sidecar is the latency lever. Warm render ≈ **1.5s host / 2.9s
+  in-container**; cold-start warm-up ≈ first ~10–90s (triggers fall back to no overlay until ready).
+- **Kiosk needs no change** — overlay is burned into the mp4 server-side; `mras-display` just plays the URL.
+- Build warning (non-fatal): Remotion suggests pinning exact `zod` — left as-is (`^3.23.8`) since it works.
+**State:** All 3 PRs open. **Headless E2E PROVEN on the real containers** (no camera): seeded `Jason`
+identity → `POST /trigger` → `{status:ok}`; composer `POST mras-overlays:3000/render "200 OK"`;
+sidecar `rendered "Jason" (turbulence-warp) in 2886ms`; `ffprobe /output/m3-e2e.mp4` = h264/yuv420p
+854×480 8.1s (overlay composited, no alpha leak); `compose stop` → graceful SIGTERM. Stack left up.
 
 ## 2026-06-08 — Phase 0.5 M1 + M2 done (warp preset + multi-overlay), all verified E2E
 **Changes:**
