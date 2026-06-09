@@ -4,6 +4,13 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
+## 0. Always Reference Files by Absolute Path
+
+**Whenever you mention a file — in chat, plans, specs, PRs, commit messages, code comments, or
+docs — use its full absolute path** (e.g. `/Users/jn/code/mras-overlays/examples/HelloName.tsx`),
+never a bare name like `HelloName.tsx`. The reader should never have to search for where a file
+lives. This applies to every session, skill, and agent.
+
 ## 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
