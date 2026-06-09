@@ -91,6 +91,39 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-09 — Delete ads/components: live E2E fixes + branch reconciled with M5 (PR #14)
+Debugged a live-demo failure (delete buttons broken) with systematic debugging + Playwright E2E.
+Branch `feat/delete-ads-and-components` (mras-ops PR #14, **OPEN, not merged**).
+**Root causes (two):**
+1. **Stale ops-api container.** Branch code was correct (`DELETE /ads|/components` + CORS `DELETE`
+   in `/Users/jn/code/mras-ops/api/src/main.py`), but the running container predated it →
+   DELETE `405`, CORS preflight `400 Disallowed CORS method`. A prior rebuild covered only
+   `mras-overlays mras-ops-frontend`, **not `mras-ops-api`**. Fix: rebuild that service.
+2. **Silent component-delete error (code bug).** The single `deleteError` rendered only inside the
+   Ads `<section>`, so a failed *component* delete (409 "used by existing ads") showed its error
+   under the Ads list — invisible from the Components button. Explains "components: nothing happened,
+   ads: error". Fix: split into `componentDeleteError` + `adDeleteError`, each beside its own list.
+**Changes (mras-ops, branch `feat/delete-ads-and-components`):**
+- TDD `329b2c1` (red) → `6b273e1` (green): per-section delete errors.
+- `9b19a20`: **merged `origin/main`** so the branch ships delete *with* M5 Task 2 (it previously
+  predated `2aae61a` → a frontend built from it lost the props-fields). Auto-merged clean; both
+  features verified coexisting (**vitest 17/17**, `tsc` clean).
+**Learnings / gotchas:**
+- **Always run a live Playwright E2E (don't ask) — unit tests miss integration breakage.** New
+  standing rule from the user (saved to memory). Unit tests were green while the feature was broken
+  live (stale container + wrong-section error). When a feature touches a service, **rebuild THAT
+  service's container** — a stale container looks exactly like a code bug.
+- Components uploaded **before** M5 Task 1 have `props_schema={}` and correctly fall back to the JSON
+  textarea — only newly-uploaded components get schema fields. Verified by uploading `FishSwim.tsx`
+  live → Preview rendered labeled, default-filled fields (count=6, colors=[…], speed=1,
+  waveAmplitude=0.06).
+- Playwright MCP file upload is restricted to the cwd root — copy the example into the repo first.
+**Live E2E (Playwright) — all pass:** ad delete (removed); component delete unused (removed);
+component delete in-use (409, error now in Components section); upload→props-fields with defaults.
+**State:** ops-api + ops-frontend containers rebuilt from the branch; live UI now has delete +
+M5 props-fields. PR #14 updated, awaiting review/merge. Filed jgervin/mras-ops#17 (POST/GET schema
+key mismatch). M5 Task 3 (props-fields live E2E) effectively covered by the FishSwim upload above.
+
 ## 2026-06-09 — M5 Task 2: Authoring renders schema-driven prop fields, merged
 M5 Task 2 (frontend) done. Built as **two competing variants** (parallel background agents), user
 picked variant B; the other was closed. Only Task 3 (live E2E) of M5 remains.
