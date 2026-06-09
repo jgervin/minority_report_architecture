@@ -1,3 +1,5 @@
 .DS_Store
 *.pdf
-.claude/
+# Ignore local Claude state (worktrees, settings) but track shared agents
+.claude/*
+!.claude/agents/
