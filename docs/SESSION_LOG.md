@@ -91,6 +91,34 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-09 — M5 Task 2: Authoring renders schema-driven prop fields, merged
+M5 Task 2 (frontend) done. Built as **two competing variants** (parallel background agents), user
+picked variant B; the other was closed. Only Task 3 (live E2E) of M5 remains.
+**Changes (by repo):**
+- mras-ops: **PR #15 merged to main** (`origin/main` @ `2aae61a`). Authoring now auto-renders one
+  labeled, default-filled input per prop (string→text, number→number, boolean→checkbox, enum→select,
+  array-of-primitive→comma-separated) from a component's `props_schema`, in **both** Preview (after
+  upload) and Create Ad (on component select); typed values are coerced before submit; empty optional
+  fields are omitted so the component's own zod defaults apply. Falls back per-field to a raw-JSON
+  input for unsupported types. Files: `/Users/jn/code/mras-ops/frontend/src/Authoring.tsx`,
+  `/Users/jn/code/mras-ops/frontend/src/api.ts`, `/Users/jn/code/mras-ops/frontend/src/Authoring.test.tsx`.
+  TDD: `5392445` (test/red) → `55f87dd` (feat/green). Suite 13/13.
+**Learnings / gotchas:**
+- **ops-api returns the schema under TWO keys:** `propsSchema` (camelCase) from `POST /components`
+  (upload) vs `props_schema` (snake_case) from `GET /components` (list). Preview reads the camel one,
+  Create Ad the snake one — the frontend tolerates both. Both independent variants hit this; it should
+  be normalized in ops-api (recommend `props_schema`, matching the DB column) and the dual-key read
+  then dropped. **Tracked as a follow-up (issue pending — needs filing).**
+- Array props are entered **comma-separated** (e.g. `#f39c12, #e74c3c`), not JSON/bracketed.
+  Enum/boolean paths exist but no current example component exercises them (unit-tested only).
+- Create-Ad fields only appear once a component is selected AND its `props_schema` has `properties`;
+  if Task 1's sidecar returns `{}`, the form correctly falls back to the JSON textarea.
+- **Op step:** rebuild ops-frontend for the live UI: `cd /Users/jn/code/mras-ops && docker compose up -d --build mras-ops-frontend`.
+**State:** suite 13/13; `tsc --noEmit` + `vite build` clean. NOT yet exercised through the running
+Docker stack (needs the rebuild above + Task 1's `mras-overlays` rebuild). Next: M5 Task 3 — live E2E
+(upload `/Users/jn/code/mras-overlays/examples/FishSwim.tsx` → prop fields appear with defaults →
+preview/create uses them). All M5 worktrees/branches cleaned up.
+
 ## 2026-06-09 — M5 Task 1: sidecar emits a real props JSON schema (isolated child process), merged
 M5 (Authoring props-display) Task 1 done via spike → TDD → code-review → merge. Goal: the sidecar
 returns a populated `propsSchema` per uploaded component so the Authoring UI can render labeled,
