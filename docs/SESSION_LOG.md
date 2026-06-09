@@ -50,6 +50,15 @@ governs it — no separate process). Composer renders the viewer's name as an an
 **No caching** — every personalized trigger renders fresh (warm ≈ 2.9s in-container). First ~10–90s
 after startup the sidecar is still warming → overlay silently falls back to no-overlay (ad still ships).
 
+**Custom-component authoring (M4 — branches, not yet merged):** advertisers upload a Remotion `.tsx`
+(via ops-frontend → ops-api `POST /components` → sidecar bundles once, registers `comp-<slug>`), bind
+it to an **ad** (`ads` table: base_video + component + default_props + personalized_field + is_active),
+and an identified viewer's `/trigger` renders the bound custom component (warm, ~1.1s) with their name.
+Sidecar `POST /render` takes `{compositionId, props}`; uploaded components persist on the
+`custom_components` volume. **No sandbox/security yet** — advertiser code runs un-isolated (deferred).
+Apply migration `002_custom_components.sql` manually on an existing DB volume (init scripts run only on
+a fresh DB).
+
 **TTS:** ElevenLabs primary → **Google Gemini** fallback (MisoOne was replaced). Keys in `mras-ops/.env`.
 
 **Recognition:** confidence threshold 0.68. Below threshold → `is_new_visitor=true` → standard ad
@@ -81,6 +90,85 @@ with open("alice.jpg","rb") as f:
 ---
 
 ## Session Entries (newest first)
+
+## 2026-06-08 — Phase 0.5 M4 COMPLETE: custom-component ad authoring (speed-first, security deferred), E2E proven
+**M3 first merged to main** (overlays #1, composer #7, ops #1) so M4 branches off clean mains.
+**7 PRs open (stacked; none merged — awaiting review). Merge in dependency order:**
+- mras-overlays PR #3 (`feat/m4-dynamic-components` @ `4449562`) — dynamic custom-component registry
+  (`writeComponent`/`regenerateManifest` → static `src/custom/registry.ts`; `Root` registers
+  `comp-<slug>` comps), `POST /components` (write→hot re-bundle→validate, keep prior serveUrl on fail,
+  serialized via the render queue, empty-slug guard), `POST /render {compositionId,props}`.
+- mras-ops PR #2 (`feat/m4-registry-api` @ `e7c7dbe`) — migration `002_custom_components.sql`
+  (`components`,`ads`); ops-api `POST /components` (multipart→proxy to sidecar→upsert; 502 on sidecar
+  error; 120s httpx timeout), `GET /components`, `POST/GET/PATCH /ads`.
+- mras-composer PR #9 (`feat/m4-render-seam` @ `b9adb45`) — `render_composition_http(client,url,
+  composition_id,props,work)` seam (`render_overlay_http` delegates); `conformance.assert_conformant`
+  (dims+alpha, raises `ConformanceError`; malformed-ffprobe guarded).
+- mras-composer PR #10 (`feat/m4-preview` @ `f45bc3f`, base #9) — `assemble` supports `audio_inserts=[]`
+  (no `amix`; `-map 0:a?`); `POST /preview` (render custom comp + composite, no audio → mp4 url; whole
+  body in try→`{"error":...}`).
+- mras-composer PR #11 (`feat/m4-trigger-custom-ad` @ `76282e6`, base #10) — `AdSelection.composition_id`
+  +`overlay_props`; selector picks active `is_active`+`ready` ad (joins components) for identified
+  viewers, fills `personalized_field` with the name; `/trigger` renders the custom comp via
+  `build_custom_overlay_inserts` → `assemble(overlay_inserts=…)`; failure → no-overlay fallback (voice
+  still plays); unidentified → standard, no broadcast (idle pool loops).
+- mras-ops PR #3 (`feat/m4-authoring-ui` @ `97ca7c6`, base #2) — ops-frontend authoring page (vitest +
+  testing-library added): upload component (status), schema-driven prop form, base picker, Preview
+  (`<video>`), create/list ads. Uses `VITE_OPS_API_URL`/`VITE_COMPOSER_URL` (default localhost 8080/8002).
+- mras-ops PR #4 (`feat/m4-compose-e2e`, base #3) — compose: `custom_components` volume on the sidecar,
+  ops-api gets `OVERLAY_SIDECAR_URL` + `depends_on` sidecar.
+**E2E PROVEN (real containers, no camera):** upload `HelloName.tsx` → `comp-helloname` `ready` → create
+ad (standard.mp4 + comp + personalize `text`, active) → seed `Jason` → `POST /trigger` → `{status:ok}`;
+composer `POST mras-overlays:3000/render "200 OK"`; sidecar `rendered composition "comp-helloname" in
+1098ms`; `ffprobe /output/m4-e2e.mp4` = h264/yuv420p 854×480 (composited, no alpha leak).
+**Learnings / gotchas:**
+- **Security is OUT of scope this milestone** (user decision: speed #1, not production, Remotion may not
+  be final, no AWS). NO sandbox/isolation, NO static code analysis — advertiser code runs in the warm
+  sidecar's Node (bundle) + Chromium (render). Forward hooks kept: the **render-backend seam** (swap in
+  isolation/remote later) + **output-conformance** (correctness). Going live REQUIRES the isolation
+  milestone first. Filed as issues.
+- **Wire-contract coupling:** the sidecar `/render` and composer both moved to `{compositionId, props}`
+  — **overlays PR #3 and composer PR #9 must merge together** or the live path breaks.
+- **Composition ids use `comp-<slug>` (hyphen)** — Remotion forbids underscores in composition ids.
+- **Bundle-once-at-upload** keeps per-trigger warm (~1.1s observed); custom renders are NOT cached.
+- **Migration 002 won't auto-apply** to an existing postgres volume (init scripts run only on a fresh
+  DB) — apply manually: `docker compose exec -T postgres psql -U mras -d mras -f
+  /docker-entrypoint-initdb.d/002_custom_components.sql`.
+- Pre-existing: `events.trigger_id` is a UUID column → `DB event log failed: invalid UUID 'm4-e2e'`
+  when a non-UUID trigger_id is used; trigger still returns ok. Filed as a follow-up.
+**Spec:** `docs/superpowers/specs/2026-06-08-m4-custom-component-authoring-design.md`;
+**Plan:** `docs/superpowers/plans/2026-06-08-m4-custom-component-authoring.md`.
+**State:** all 7 PRs open/unmerged; stack must merge in order. Stack left running.
+
+## 2026-06-08 — Phase 0.5 M4 Task 1: dynamic custom-component registry + render-by-id
+**Changes:**
+- mras-overlays PR #3 (`feat/m4-dynamic-components` @ `3fdaf72`) — **dynamic custom component registration**
+  - `src/components.ts`: `slugify`, `writeComponent`, `regenerateManifest` — writes `src/custom/<slug>.tsx`,
+    regenerates the webpack-analyzable static manifest (`src/custom/registry.ts`).
+  - `src/customRegistry.ts`: re-export from `src/custom/registry.ts` (stable import path).
+  - `src/custom/registry.ts`: auto-generated manifest (initially empty); updated by `regenerateManifest`.
+  - `src/Root.tsx`: maps `customComponents` array into additional `<Composition>`s with same `calculateMetadata`.
+  - `src/server.ts`: `ServerDeps` gains `registerComponent(name,source)→RegisterResult`; `render` sig
+    changed to `(compositionId, props)`; `POST /components` (200 ready, 422 failed, 400 bad input);
+    `POST /render` body now `{compositionId, props}` (default `"Overlay"`; overlay-only schema validation).
+    `makeWarmRenderer`: re-bundles + `selectComposition` validates on registration; swaps `serveUrl` only
+    on success, leaving prior URL intact on failure.
+  - TDD red→green: 13/13 tests (`components.test.ts` + extended `server.test.ts`).
+  - Smoke: `examples/HelloName.tsx` registered as `comp-helloname`, rendered to `.mov`,
+    `ffprobe pix_fmt: yuva444p12le` ✓.
+
+**Learnings / Gotchas:**
+- **Remotion forbids underscores in composition IDs** (`a-z, A-Z, 0-9, CJK, -` only).
+  Spec said `comp_<slug>` — had to use `comp-<slug>` for the Remotion id.
+  JS variable names in the generated manifest still use `comp_<ident>` (underscores fine there).
+- `src/custom/registry.ts` must be a *statically analyzable* import manifest — no dynamic `require`.
+  Remotion's webpack bundler needs to see literal import paths at parse time.
+- `calculateMetadata` on custom compositions typed as `(opts: {props: any})` cast to avoid TS error
+  (Remotion's generic `CalculateMetadataFunction<Record<string,unknown>>` doesn't match a typed subset).
+- `ffprobe` reports `yuva444p12le` (not `yuva444p10le`) on this macOS Chromium build — both are correct
+  alpha-preserving pixel formats; ProRes 4444 supports both.
+
+**State:** superseded by the "M4 COMPLETE" entry above (PR #3 head later `4449562` after C1/C2 review fixes). M3 has since been merged to main.
 
 ## 2026-06-08 — Phase 0.5 M3: live-kiosk overlay render sidecar (no caching), E2E proven
 **Changes (3 PRs, none merged — awaiting review):**
