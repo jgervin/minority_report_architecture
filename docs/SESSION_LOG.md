@@ -91,9 +91,12 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
-## 2026-06-09 — Delete ads/components: live E2E fixes + branch reconciled with M5 (PR #14)
+## 2026-06-09 — Delete ads/components: live E2E fixes + reconciled with M5, MERGED to main
 Debugged a live-demo failure (delete buttons broken) with systematic debugging + Playwright E2E.
-Branch `feat/delete-ads-and-components` (mras-ops PR #14, **OPEN, not merged**).
+**Merged to `mras-ops` main** (`origin/main` @ `7ee9e3d`) via a **stacked PR** chain:
+`feat/delete-ads-and-components` (PR #14) → base `fix/flag-broken-ads` (PR #13) → `main`. Merge order
+was child→parent→main: PR #14 first (into its parent branch), then PR #13 (parent → main). Reviewed
+(`/code-review` — 4 non-blocking findings, see below), tests 17/17, both merges CLEAN.
 **Root causes (two):**
 1. **Stale ops-api container.** Branch code was correct (`DELETE /ads|/components` + CORS `DELETE`
    in `/Users/jn/code/mras-ops/api/src/main.py`), but the running container predated it →
@@ -120,9 +123,17 @@ Branch `feat/delete-ads-and-components` (mras-ops PR #14, **OPEN, not merged**).
 - Playwright MCP file upload is restricted to the cwd root — copy the example into the repo first.
 **Live E2E (Playwright) — all pass:** ad delete (removed); component delete unused (removed);
 component delete in-use (409, error now in Components section); upload→props-fields with defaults.
-**State:** ops-api + ops-frontend containers rebuilt from the branch; live UI now has delete +
-M5 props-fields. PR #14 updated, awaiting review/merge. Filed jgervin/mras-ops#17 (POST/GET schema
-key mismatch). M5 Task 3 (props-fields live E2E) effectively covered by the FishSwim upload above.
+**State:** ops-api + ops-frontend containers rebuilt; live UI has delete + M5 props-fields, all
+verified live. **Merged to main** (PRs #13+#14). Filed jgervin/mras-ops#17 (POST/GET schema key
+mismatch). M5 Task 3 (props-fields live E2E) effectively covered by the FishSwim upload above.
+**Non-blocking review findings (follow-ups, not yet filed):** (1) the Create-Ad `adPropValues` reset
+`useEffect` depends on `components`, so deleting any component wipes in-progress ad prop edits;
+(2) non-UUID id to `DELETE /ads|/components` → uncaught `::uuid` cast → 500 (unreachable from UI);
+(3) `coerceProps` always emits booleans, overriding a component's own boolean default; (4) delete
+returns 200 even when no row matched (no 404).
+**Git-workflow learning:** before merging a PR, **check its base branch** (`gh pr view --json
+baseRefName`) — PR #14 was stacked on `fix/flag-broken-ads`, not `main`; merging blindly would have
+left the work off main. Stacked PRs merge child→parent→main, in order.
 
 ## 2026-06-09 — M5 Task 2: Authoring renders schema-driven prop fields, merged
 M5 Task 2 (frontend) done. Built as **two competing variants** (parallel background agents), user
