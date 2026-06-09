@@ -138,7 +138,12 @@ composer `POST mras-overlays:3000/render "200 OK"`; sidecar `rendered compositio
   when a non-UUID trigger_id is used; trigger still returns ok. Filed as a follow-up.
 **Spec:** `docs/superpowers/specs/2026-06-08-m4-custom-component-authoring-design.md`;
 **Plan:** `docs/superpowers/plans/2026-06-08-m4-custom-component-authoring.md`.
-**State:** all 7 PRs open/unmerged; stack must merge in order. Stack left running.
+**State:** **all 7 PRs MERGED to main** (overlays #3; composer #9,#10,#11; ops #2,#3,#4) — merged in
+dependency order with merge commits (red→green history preserved). Note: composer #10 (preview) shows
+GitHub-"closed" not "merged" — its commits reached main via the stacked child #11 (deleting #9's branch
+auto-closed its child; lesson: don't `--delete-branch` on stacked PRs — retarget children to main
+first). Post-merge mains verified: overlays 15 tests, composer 76 tests, ops compose-config valid.
+Migration 002 still requires manual application on existing DB volumes. Stack left running.
 
 ## 2026-06-08 — Phase 0.5 M4 Task 1: dynamic custom-component registry + render-by-id
 **Changes:**
