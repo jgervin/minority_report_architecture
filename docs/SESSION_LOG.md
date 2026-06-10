@@ -174,15 +174,23 @@ substring-matches `main`).
 `.claude/hooks/guard-git.test.sh`, 7/7): a push to `main` is allowed iff the `CLAUDE_GIT_OK=1` marker is
 present AND the net diff (`origin/main..HEAD`) is nothing but `docs/SESSION_LOG.md`. This journal can now be
 committed + pushed straight to main with no PR — which is how THIS entry landed.
-**SECURITY (hardening — next ticket):** two automated reviews flagged a HIGH on the exception — it infers
-the payload from `origin/main..HEAD` rather than the actual pushed refspec, so an unusual push form
-(`git push origin other:main`, `refs/heads/main`, `git -C … push`, or a compound command) could differ from
-what's checked. The guard is accident-prevention, not adversarial-proof (the marker is readable), and the
-real journal push is the safe literal `git push origin main`, so it isn't exploited here — but the exception
-will be tightened (restrict to the literal `git push origin main`/`HEAD:main` form, reject compound commands,
-broaden main-detection to `refs/heads/main` + `git -C … push`).
-**State:** 4 review findings + governance convergence (all 5 repos) + SESSION_LOG guard exception shipped &
-verified. Pending: harden the guard exception per the security review (next ticket).
+**SECURITY (hardening — DONE, PR #5 `e4dcafe`):** two automated reviews flagged a HIGH on the exception —
+it inferred the payload from `origin/main..HEAD` rather than the actual pushed refspec, so an unusual push
+form (`git push origin other:main`, `refs/heads/main`, `git -C … push`, or a compound command) could differ
+from what the diff check saw. Guard is accident-prevention, not adversarial-proof (marker is readable), and
+the real journal push is the safe literal `git push origin main`, so it was never exploited. Hardened
+test-first (`guard-git.test.sh` 13/13, +6 security cases): the exception now requires the EXACT literal form
+`CLAUDE_GIT_OK=1 git push origin main` (or `HEAD:main`, opt. `-u/-q`) — source is always HEAD/main, no
+refspec differential; compound commands rejected by the `$` anchor; push/main detection broadened to catch
+`git -C … push` and `refs/heads/main` so the deny path can't be skipped; the journal-only diff check kept as
+defense in depth.
+**Guard ergonomics / gotchas:** (1) the detection substring-matches `git…push` + a `main` token, so a
+`git commit`/`gh pr` whose MESSAGE or BODY contains the phrase "git push … main" is over-denied (fail-safe)
+— pass such text via `-F`/`--body-file` from a temp file, not inline. (2) Use `HEAD`, not the literal word
+`main`, as a branch start-point. (3) Known residual (pre-existing, documented in-code): a *bare* `git push`
+from `main` with an upstream isn't detected; git-flow-manager always uses explicit `git push origin main`.
+**State:** ALL DONE — 4 mras-ops review findings + governance convergence (all 5 repos) + SESSION_LOG guard
+exception + security hardening, all shipped & verified. Nothing pending.
 
 ## 2026-06-09 — Git workflow guardrails: worktree-per-ticket rules + git-flow-manager subagent + PreToolUse guard
 Standardized Git discipline across all 5 MRAS repos that have a `CLAUDE.md`
