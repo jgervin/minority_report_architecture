@@ -24,14 +24,28 @@ if ! printf '%s' "$cmd" | grep -Eq '(^|[;&|(]|[[:space:]])(git|gh)([[:space:]]|$
   exit 0
 fi
 
-# Hard guard: never push to main, regardless of who is running.
-if printf '%s' "$cmd" | grep -Eq 'git[[:space:]]+push' \
-   && printf '%s' "$cmd" | grep -Eq '(^|[[:space:]:])main([[:space:]]|:|$)'; then
-  deny "Pushing to main is never allowed. Land changes via 'gh pr merge' after review (see CLAUDE.md Git & Branching Rules)."
+# The git-flow-manager subagent opts in by prefixing commands with this marker.
+has_marker=0
+if printf '%s' "$cmd" | grep -Eq '(^|[[:space:]])CLAUDE_GIT_OK=1([[:space:]])'; then
+  has_marker=1
 fi
 
-# Allowance: the git-flow-manager subagent opts in with this marker.
-if printf '%s' "$cmd" | grep -Eq '(^|[[:space:]])CLAUDE_GIT_OK=1([[:space:]])'; then
+# Hard guard: never push to main — EXCEPT the git-flow-manager (marker present) pushing
+# nothing but the session journal (docs/SESSION_LOG.md). Everything else to main is denied.
+if printf '%s' "$cmd" | grep -Eq 'git[[:space:]]+push' \
+   && printf '%s' "$cmd" | grep -Eq '(^|[[:space:]:])main([[:space:]]|:|$)'; then
+  if [ "$has_marker" = 1 ]; then
+    # Files this push would deliver to main. Allow only if every one is the journal.
+    changed="$(git diff --name-only origin/main..HEAD 2>/dev/null || true)"
+    if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qv '^docs/SESSION_LOG\.md$'; then
+      exit 0
+    fi
+  fi
+  deny "Pushing to main is never allowed (except a docs/SESSION_LOG.md-only update by the git-flow-manager). Land changes via 'gh pr merge' after review (see CLAUDE.md Git & Branching Rules)."
+fi
+
+# Allowance: the marker opts the git-flow-manager subagent in for all other git/gh.
+if [ "$has_marker" = 1 ]; then
   exit 0
 fi
 
