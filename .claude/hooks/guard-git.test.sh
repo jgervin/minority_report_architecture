@@ -58,6 +58,15 @@ check deny  "$(decide_in "$r_journal" 'git push origin main')"                 "
 check deny  "$(decide_in "$r_code"    'CLAUDE_GIT_OK=1 git push origin main')" "code-file push to main denied"
 check deny  "$(decide_in "$r_mixed"   'CLAUDE_GIT_OK=1 git push origin main')" "journal+code push to main denied"
 
+# --- security hardening: the exception applies ONLY to the literal `git push origin main`/`HEAD:main`
+#     form, so a different refspec/flag can't smuggle code to main while the diff check sees the journal ---
+check allow "$(decide_in "$r_journal" 'CLAUDE_GIT_OK=1 git push origin HEAD:main')"          "journal-only push via HEAD:main allowed"
+check deny  "$(decide_in "$r_journal" 'CLAUDE_GIT_OK=1 git push origin topic:main')"          "non-HEAD source refspec to main denied"
+check deny  "$(decide_in "$r_journal" 'CLAUDE_GIT_OK=1 git push origin refs/heads/main')"     "refs/heads/main form denied"
+check deny  "$(decide_in "$r_journal" 'CLAUDE_GIT_OK=1 git push --force origin main')"        "force push to main denied"
+check deny  "$(decide_in "$r_journal" 'CLAUDE_GIT_OK=1 git -C . push origin main')"           "git -C push to main denied"
+check deny  "$(decide_in "$r_journal" 'CLAUDE_GIT_OK=1 git push origin main && echo pwned')"  "compound command with journal push denied"
+
 rm -rf "$r_journal" "$r_code" "$r_mixed"
 
 echo "----"
