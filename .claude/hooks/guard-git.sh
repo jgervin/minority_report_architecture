@@ -30,18 +30,24 @@ if printf '%s' "$cmd" | grep -Eq '(^|[[:space:]])CLAUDE_GIT_OK=1([[:space:]])'; 
   has_marker=1
 fi
 
-# Hard guard: never push to main — EXCEPT the git-flow-manager (marker present) pushing
-# nothing but the session journal (docs/SESSION_LOG.md). Everything else to main is denied.
-if printf '%s' "$cmd" | grep -Eq 'git[[:space:]]+push' \
-   && printf '%s' "$cmd" | grep -Eq '(^|[[:space:]:])main([[:space:]]|:|$)'; then
-  if [ "$has_marker" = 1 ]; then
-    # Files this push would deliver to main. Allow only if every one is the journal.
+# Hard guard: never push to main — EXCEPT the git-flow-manager (marker) pushing nothing but the
+# session journal (docs/SESSION_LOG.md) via the EXACT literal form `git push origin main` (or
+# `HEAD:main`). Any other push-to-main invocation — a different/`refs/heads/` refspec, a non-HEAD
+# source, --force, `git -C …`, or a compound command — is denied without consulting file contents,
+# so a refspec can't smuggle code to main while the diff check only sees the journal. Push
+# detection tolerates `git -C <dir>`; main detection also catches `refs/heads/main`.
+if printf '%s' "$cmd" | grep -Eq 'git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push' \
+   && printf '%s' "$cmd" | grep -Eq '(^|[[:space:]:])(refs/heads/)?main([[:space:]]|:|$)'; then
+  # Allow ONLY the exact, simple, marker-prefixed form (optionally HEAD: and -u/-q flags).
+  if [ "$has_marker" = 1 ] \
+     && printf '%s' "$cmd" | grep -Eq '^[[:space:]]*CLAUDE_GIT_OK=1[[:space:]]+git[[:space:]]+push([[:space:]]+(-u|--set-upstream|-q|--quiet))*[[:space:]]+origin[[:space:]]+(HEAD:)?main[[:space:]]*$'; then
+    # Form is safe; confirm it actually delivers nothing but the journal.
     changed="$(git diff --name-only origin/main..HEAD 2>/dev/null || true)"
     if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qv '^docs/SESSION_LOG\.md$'; then
       exit 0
     fi
   fi
-  deny "Pushing to main is never allowed (except a docs/SESSION_LOG.md-only update by the git-flow-manager). Land changes via 'gh pr merge' after review (see CLAUDE.md Git & Branching Rules)."
+  deny "Pushing to main is never allowed (except a docs/SESSION_LOG.md-only update via 'CLAUDE_GIT_OK=1 git push origin main'). Land changes via 'gh pr merge' after review (see CLAUDE.md Git & Branching Rules)."
 fi
 
 # Allowance: the marker opts the git-flow-manager subagent in for all other git/gh.
