@@ -102,6 +102,49 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-11 — PER-DISPLAY CUSTOM ADS SHIPPED: multi-face vision, variant fan-out, demo CLIs — 4-ads-for-one-person and 2/2 two-person split PROVEN live
+**Plan:** minority_report_architecture@`8ab584b` (PR #9, `08d60a5`) —
+`docs/superpowers/plans/2026-06-11-per-display-custom-ads.md`: owner decisions (4 distinct
+custom-Remotion ads; 2/2 split; enroll + random-compose CLIs; **T0/TODO-5 latency benchmark ON
+HOLD** — current architecture isn't the production shape; production = real-time PARALLEL
+composition, ~4 people <4s/2s per area, 1–4 areas × ~1000 locations), plus the long-term
+perception architecture (Strategy-registry analyzers, scatter-gather-with-deadline into D9
+`scene_context`; face TRACKING is the real Phase 2 work).
+**T-V (mras-vision@`418be31`, PR #8 merged → `08623d2`):** live path resolves EVERY face —
+**recon found a hard blocker: the old live path raised `multiple_faces` and skipped any frame with
+2+ people, so nothing triggered**. `embed_all()` (enrollment's one-face `embed()` unchanged);
+`faces_in_frame` + `scene_context` ride the trigger payload; new
+`/Users/jn/code/mras-vision/src/perception/aggregator.py` (deadline-gather, EMPTY registry — pure
+seam). 43/43. Follow-up: issue mras-vision#9 (release claim on queue-drop; multi-face amplifies).
+**T-C (mras-composer@`db7db6a`+`7d246c9`, PR #20 merged → `ed8a1b7`):** WSManager tracks
+`screen_id` per kiosk window + `send_to`; `DisplayAssigner` splits displays evenly by
+`faces_in_frame` with TTL reservations (DISPLAY_HOLD_SECS=12, released early when nothing will
+play — review caught a new visitor freezing the wall); `select_variants` = up to N DISTINCT
+active custom ads (cycle when fewer, legacy fallback, identity-race guarded); `/trigger`
+composes variants IN PARALLEL and targets each display its own clip; untagged kiosks keep the
+legacy broadcast. ffmpeg Semaphore 1→`FFMPEG_CONCURRENCY` (default 4). 101 passed.
+**T-E/T-R (mras-ops@`0ea03df`, PR #28 merged → `35aebd0`):**
+`/Users/jn/code/mras-ops/enroll.sh "Name" photo.jpg` (vision /enroll wrapper; live-verified via
+the E2EPerson duplicate-merge path: `updated: 1`) and
+`/Users/jn/code/mras-ops/compose-random.sh [Name]` (random base × random ready component via
+composer /preview; live-verified: fallingsnow × standard.mp4 → real mp4).
+**LIVE E2E (real stack + 4-window kiosk, no camera):**
+- Seeded 2 more active ads → 4 active ads on 4 DISTINCT components (snallfall, helloname,
+  fallingsnow, lightleak).
+- **Jason alone (faces_in_frame=1): one trigger → `{status: ok, displays: 4}` — all 4 displays
+  played a DIFFERENT composed clip** (variant suffixes -0..-3). Took **16.6s**: the overlay
+  sidecar renders are single-flight (M3 design), so 4 variants serialize there — fine for the
+  demo, but the <4s production budget needs parallel render capacity (recorded in the plan).
+- **Two people (both faces_in_frame=2): Jason → displays 1+2, E2EPerson → displays 3+4**, each
+  pair showing that person's own two variants; one TTS per person (Gemini). 6.8s/11.2s.
+**Gotchas:** components uploaded pre-M5 have empty props_schema → compose-random personalizes
+the first STRING prop only when one exists (decorative comps rely on the TTS voice for the
+name); FFMPEG_TIMEOUT=10 survived 4-wide parallel encodes (long pole is the sidecar, not
+ffmpeg).
+**State:** everything merged & live-verified except the physical walk-up (camera needs the
+owner's terminal): restart native vision (now multi-face), stand in frame alone → 4 ads; with a
+second enrolled person → 2/2. Enroll them via `./enroll.sh "Name" photo.jpg`.
+
 ## 2026-06-11 — T2 + T3 SHIPPED: burst backpressure + kiosk watchdog — Phase 1 core complete
 **T2 (mras-vision@`fbf440a`+`cf76d85`, PR #6 merged, `origin/main` @ `0ffb8b9`):** per-trigger
 `create_task` replaced by `asyncio.Queue(maxsize=TRIGGER_QUEUE_MAX, default 8, clamped ≥1)` + one
