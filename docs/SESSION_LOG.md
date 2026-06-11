@@ -72,6 +72,12 @@ a fresh DB).
 - Vision tests run via `mras-vision/.venv/bin/python -m pytest` (host pyenv 3.11 lacks deps).
 - `mras-kiosk` is a superseded scaffold — the live kiosk is `mras-display`.
 - One-command startup: `mras-ops/start-mras.sh` (starts Docker, the compose stack, then native vision).
+- **Kiosk is multi-display (T-D, 2026-06-11):** `npm run electron:dev` in `mras-display` starts
+  **DISPLAY_COUNT windows (default 4, clamp 1–10)** — fullscreen-per-monitor when enough monitors,
+  else a tiled grid on the primary. Each window shuffles the idle pool independently and connects as
+  `/ws?screen_id=display-<n>`; the composer broadcast makes all windows play the same composed clip.
+  **Port 5173 must be free** — a stale vite server there makes Electron silently load OLD code
+  (worktree vite falls back to 5174 but Electron still hits 5173).
 - **Node containers: don't `CMD ["npm","start"]`** — npm as PID 1 swallows SIGTERM so graceful
   handlers never run. Run the binary directly (`node_modules/.bin/tsx …`) + compose `init: true`
   (tini). The overlay sidecar does this; `docker compose stop mras-overlays` logs the graceful close.
@@ -95,6 +101,39 @@ with open("alice.jpg","rb") as f:
 ---
 
 ## Session Entries (newest first)
+
+## 2026-06-11 — T-D SHIPPED: multi-display kiosk (4 windows, shuffled idle) + Phase 1 plan resequenced
+**Changes:**
+- minority_report_architecture@`7b8b372` (**PR #8** merged, `c164fc3`) — Phase 1 plan
+  (`docs/superpowers/plans/2026-06-11-phase-1-venue-readiness.md`) gained new ticket **T-D**
+  (owner requirement: 1–10 displays off one camera system, 4 at startup, shuffle not loop, same
+  composed clip on all for now), resequenced **T-D→T1→T2→T3**, **T4 (AWS) deferred**; T1 note:
+  cooldown `screen_id` = camera/screen-group, NOT per display; T3 gains a per-window
+  `render-process-gone` recovery layer.
+- mras-display@`1d897ba` (**PR #7 merged**, `origin/main` @ `25fa0be`) — **T-D done.** Electron
+  startup creates `DISPLAY_COUNT` windows (default 4, clamp 1–10) via new pure
+  `/Users/jn/code/mras-display/electron/layout.js` (fullscreen-per-monitor when ≥N monitors, else
+  grid on primary); each window loads `?screen_id=display-<n>` and appends it to the composer WS
+  URL (forward hook — composer ignores it today). Idle rotation is a **shuffled cycle** per window
+  (new `/Users/jn/code/mras-display/src/shuffle.ts`: Fisher-Yates, full coverage per cycle, no
+  immediate repeat across cycles; drop-in `/playlist` refreshes join the next cycle). TDD
+  red→green `6e30c5a`→`1d897ba`; 32/32 vitest (12 new), tsc clean. Code review: ready-to-merge,
+  0 critical/important.
+**Live E2E (real stack + Electron):** 4 windows opened with distinct screen_ids; composer logged 4
+`/ws?screen_id=display-N` connections; independent shuffle orders observed; real `POST /trigger`
+(enrolled Jason) → **all 4 windows played the same composed clip** then resumed **4 different**
+idle videos.
+**Learnings / gotchas:**
+- **Stale vite on 5173 = silent stale-code E2E.** `electron:dev` hardcodes 5173; a leftover dev
+  server from the main checkout served OLD App code while the worktree's vite sat on 5174 — looked
+  exactly like a code bug (lockstep sequential rotation). Kill 5173 listeners before kiosk E2E.
+- **Pre-existing lockfile drift in mras-display:** `playwright` is in `package.json` dependencies
+  on main but missing from `package-lock.json` (npm install dirties the lock). Excluded from the
+  T-D PR; filed as a follow-up chore issue.
+- Fullscreen-per-monitor path is unit-tested only (single-Mac dev box; macOS gives each
+  fullscreen window its own Space) — do a 2-monitor smoke test before venue day.
+**State:** T-D shipped & live-verified. Phase 1 remaining: **T1 (Redis cooldown) → T2 (burst
+queue) → T3 (watchdog, now multi-window-aware)**; T0 latency check optional-first; T4 deferred.
 
 ## 2026-06-11 — Phase 1 plan consolidated + HANDOFF pointer (PR #6); journal catch-up
 **Changes:** minority_report_architecture@39511c8 (merged via **PR #6** `6eed023`) —
