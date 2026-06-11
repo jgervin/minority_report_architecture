@@ -102,6 +102,38 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-11 — T1 SHIPPED: Redis shared cooldown (TTL-only keys, in-memory fallback)
+**Changes:**
+- mras-vision@`a2ef3e4`+`26fda0b` (**PR #4 merged**, `origin/main` @ `67db4a4`) — new
+  `/Users/jn/code/mras-vision/src/identity/cooldown.py`: `RedisCooldownStore` when `REDIS_URL` is
+  set (shared across cameras/processes, survives restarts) else the Phase 0 in-memory dict;
+  per-call fallback to memory on Redis errors. Resolver delegates (injectable store); key
+  `screen_id:uuid` (namespaced `cooldown:`/`impressions:`); `screen_id` = camera/screen-group.
+  Deps: `redis` (runtime), `fakeredis` (tests). TDD red→green `ffc381b`→`a2ef3e4`; 27/27 pytest
+  (10 new). Review: 3 important findings, all fixed in `26fda0b`.
+- mras-ops@`d771469`+`2ffe22c` (**PR #27 merged**, `origin/main` @ `297bce6`) — `redis:7-alpine`
+  compose service (**loopback-only `127.0.0.1:6379`** — unauthenticated Redis must not reach venue
+  Wi-Fi; healthcheck; **deliberately NO volume**); vision compose env + `run-vision-native.sh` get
+  `REDIS_URL` defaults. Container recreated from merged main — port now binds loopback.
+**OWNER DATA-BOUNDARY RULE (locked 2026-06-11):** Redis holds ONLY transient coordination flags —
+**every Redis key must carry a TTL** (cooldown = `COOLDOWN_SECS`=30s; any bookkeeping key capped at
+24h; the default MAX_ADS=1 path writes a single `SET EX`, no counter at all). **Durable
+transactional play history (dashboard, billing, play proof) lands in the PostgreSQL `events` table
+(D19), never Redis.** Losing Redis costs at most one repeated ad per person.
+**Live verification (real Redis container):** cooldown key TTL=30; a **fresh second process** sees
+the cooldown (restart/second-camera survival — the point of T1); `max_ads=2` pipeline path
+verified; `docker stop redis` → warning + in-memory fallback, no crash; `redis-cli` shows only
+TTL'd keys, counters cleaned up.
+**Learnings / gotchas:**
+- Review caught an **un-TTL'd key window**: separate `INCR`+`EXPIRE` round trips could strand a
+  TTL-less counter if Redis failed between them — fixed with a transaction pipeline (and the
+  default path avoids the counter entirely). Also caught: suite hermeticity (`tests/conftest.py`
+  now scrubs ambient `REDIS_URL`) and the 0.0.0.0 port binding.
+- The git guard pattern-matches `push`+`main` across a whole compound command line — run `git push`
+  and `gh pr create --base main` as separate Bash calls.
+**State:** T1 shipped & live-verified. Phase 1 remaining: **T2 (burst queue) → T3 (watchdog)**;
+T4 deferred. Restart-survival walk-up test with the real camera still worth doing at next demo.
+
 ## 2026-06-11 — T-D SHIPPED: multi-display kiosk (4 windows, shuffled idle) + Phase 1 plan resequenced
 **Changes:**
 - minority_report_architecture@`7b8b372` (**PR #8** merged, `c164fc3`) — Phase 1 plan
