@@ -1,7 +1,12 @@
-# MRAS / AdFace — Handoff (M3 + M4 done; M5 next)
+# MRAS / AdFace — Handoff (M3/M4/M5 done; Phase 1 next)
 
 Paste-able context for a new session. Read `docs/SESSION_LOG.md` (top entries) + `CLAUDE_PROJECT_BRIEF.md`
-for full detail; this is the consolidated state as of 2026-06-09.
+for full detail; this is the consolidated state as of 2026-06-09 (M5 + the mras-ops review fixes and
+git-governance work have since merged — see the SESSION_LOG top entries).
+
+**Next phase:** `docs/superpowers/plans/2026-06-11-phase-1-venue-readiness.md` — multi-camera venue
+readiness (Redis cooldown, P1→P2 backpressure, kiosk watchdog, AWS GPU profile), consolidated from
+`TODOS.md` TODO-1..4. Execute it ticket-by-ticket per the plan's closing checklist.
 
 ## What MRAS is
 Vision-triggered **personalized digital ads** (Minority Report style). Camera recognizes/enrolls a face →
