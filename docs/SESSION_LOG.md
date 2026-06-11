@@ -102,6 +102,37 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-11 — T2 + T3 SHIPPED: burst backpressure + kiosk watchdog — Phase 1 core complete
+**T2 (mras-vision@`fbf440a`+`cf76d85`, PR #6 merged, `origin/main` @ `0ffb8b9`):** per-trigger
+`create_task` replaced by `asyncio.Queue(maxsize=TRIGGER_QUEUE_MAX, default 8, clamped ≥1)` + one
+drain worker in `/Users/jn/code/mras-vision/src/identity/resolver.py`. At most 1 in-flight composer
+POST, FIFO; full queue → drop + `TRIGGER_DROPPED` event (visible in the ops feed). Worker survives
+dispatch failures and is revived if it ever dies; also fixes a pre-existing fire-and-forget
+task-GC hazard. TDD red→green `a82adc4`→`fbf440a` (+2 review red→greens); 34/34 pytest. **Live:**
+burst of 6 (queue_max=2) vs the real composer → exactly 3 POSTs, 3 `dropped` rows in real Postgres
+`events`. Follow-up filed: mras-vision#7 (Redis queue if P1 goes multi-process + claim-token
+release on drop).
+**T3 (mras-display@`747ad01`+`76b5df0`+`f26953c`, PR #9 merged, `origin/main` @ `ffc0f9b`):**
+- Outer: `launchd/com.mras.kiosk.plist` (KeepAlive+RunAtLoad) + README — **must exec the REAL
+  Electron binary** (`node_modules/electron/dist/Electron.app/Contents/MacOS/Electron`); the
+  `.bin/electron` shim is `#!/usr/bin/env node` and launchd has no node on PATH (live E2E caught
+  it: `env: node: No such file or directory`, exit 127).
+- Inner: `render-process-gone` → recreate just that window with **exponential backoff** (1s→30s
+  cap, reset on healthy load; replacement-before-destroy so `window-all-closed` can't fire);
+  `unresponsive` → reload. `/health` on `KIOSK_HEALTH_PORT` (default **8003**) serves per-window
+  status; **EADDRINUSE degrades monitoring, never kills the kiosk** (review caught the health
+  server being able to crash-loop the kiosk it monitors). 41/41 vitest.
+- **Live E2E:** SIGKILL one renderer → that window recreated (backoff logged), other display
+  untouched, health ok; production build under a temp launchd plist → `kill -9` main pid →
+  **relaunched by KeepAlive** (new pid), health ok; temp plist removed. Alert wiring filed as
+  mras-display#10 (P3-C4 doesn't exist yet).
+**Ops notes:** kiosk health: `http://localhost:8003/health`. Supervisor install/remove:
+`/Users/jn/code/mras-display/launchd/README.md`. Vision picks up T2 on next native restart
+(`TRIGGER_QUEUE_MAX` env to tune).
+**State:** **Phase 1 core (T-D, T1+race fix, T2, T3) ALL SHIPPED & live-verified.** Remaining:
+T4 AWS profile (deferred by owner), T0 latency validation (optional), demo-day walk-up checks
+(restart-survival cooldown, 2-monitor fullscreen, WS-reconnect after launchd relaunch).
+
 ## 2026-06-11 — Cross-camera cooldown race CLOSED: atomic try_claim (T1 follow-up)
 **Changes:** mras-vision@`8c07f2c` (**PR #5 merged**, `origin/main` @ `4ef3056`; red `cdb0fe3`) —
 the cooldown store's two-step `is_on_cooldown`/`record_impression` collapsed into one atomic
