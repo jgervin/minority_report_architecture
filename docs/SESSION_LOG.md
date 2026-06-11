@@ -96,6 +96,24 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-11 — Phase 1 plan consolidated + HANDOFF pointer (PR #6); journal catch-up
+**Changes:** minority_report_architecture@39511c8 (merged via **PR #6** `6eed023`) —
+- `/Users/jn/code/minority_report_architecture/docs/superpowers/plans/2026-06-11-phase-1-venue-readiness.md`
+  — the consolidated **Phase 1 (multi-camera venue readiness)** plan: TODOS.md TODO-1..4 turned into
+  sequenced tickets T1 (Redis shared cooldown) / T2 (P1→P2 backpressure) / T3 (kiosk watchdog) /
+  T4 (AWS GPU profile), plus optional T0 (TODO-5 ffmpeg latency validation), with per-ticket TDD
+  breakdowns and success criteria. Code lands in sibling repos (mras-vision, mras-display, mras-ops).
+- `/Users/jn/code/minority_report_architecture/docs/HANDOFF.md` — title now "M3/M4/M5 done; Phase 1
+  next" + a "Next phase" pointer to the plan. Fresh-agent entry point: HANDOFF → plan → execute.
+**Learnings:** the prior session's handoff claimed `a37a6cf` (the "guard hardening DONE" journal
+commit) was discarded by a `git reset --hard origin/main` — it wasn't; it is reachable from
+`origin/main` and the hardening entry below already reads DONE. Verify git state before "correcting"
+it. Also: the auto-mode permission classifier can block even the guard-sanctioned direct journal push
+(`CLAUDE_GIT_OK=1 git push origin main`); when that happens, land journal updates via a chore PR
+instead of fighting it (this entry landed that way).
+**State:** Phase 0 + 0.5 (M3/M4/M5) done and merged; Phase 1 planned but not started. Next: execute
+the Phase 1 plan ticket-by-ticket (T0 latency validation first, then T1→T4).
+
 ## 2026-06-09 — Review-findings (4 fixes) + git-governance convergence + SESSION_LOG guard exception
 Working the 4 non-blocking review findings from the delete-ads/components merge, plus the
 pre-filed #17, as proper tickets in **`mras-ops`** (all five live there, not in this repo).
