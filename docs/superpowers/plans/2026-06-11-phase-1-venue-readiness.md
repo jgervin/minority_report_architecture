@@ -10,15 +10,19 @@ currently live as scattered bullets in `/Users/jn/code/minority_report_architect
 (TODO-1..4) into one sequenced, executable plan with per-ticket TDD breakdowns and success criteria,
 so a fresh agent can execute it the same way M3/M4/M5 were built.
 
-**The four tickets (all priority P2 — "needed before the first live/paid venue, not for the demo"):**
+**The tickets (revised 2026-06-11 — owner added multi-display; T4 deferred):**
+- **T-D — Multi-display kiosk + shuffled idle rotation** — NEW (owner requirement, 2026-06-11).
+  Kiosk startup launches **4 displays at once** (1–10 supported), each shuffling the idle pool
+  independently; on identification all displays play the composed clip (same clip for now,
+  per-display clips later via a `screen_id` forward hook).
 - **T1 — Shared cooldown store (Redis)** — TODO-1. Per-person ad-replay cooldown survives restarts
   and is shared across cameras/processes.
 - **T2 — P1→P2 burst handling (backpressure)** — TODO-3. A crowd firing simultaneous triggers can't
   flood the composer with stale work.
 - **T3 — Kiosk watchdog / auto-restart** — TODO-4. The always-on screen recovers from a crash without
   a human.
-- **T4 — AWS GPU rental profile** — TODO-2. A reproducible cloud launch for a multi-camera event when
-  the M3 saturates.
+- **T4 — AWS GPU rental profile** — TODO-2. **DEFERRED (owner decision 2026-06-11)** — kept below for
+  when it's picked back up; not part of the current execution sequence.
 
 Optional **T0 (Phase-0 carryover, validate first):** TODO-5 — empirically confirm software-ffmpeg
 end-to-end latency holds <3s under Docker on the M3. Phase-1 multi-camera load amplifies any latency
@@ -51,7 +55,19 @@ Health Monitor).
 
 ## Decisions (locked / recommended)
 
-- **Sequencing: T1 → T2 → T3 → T4**, each an independent worktree + PR. Rationale below in *Dependencies*.
+- **Sequencing: T-D → T1 → T2 → T3**, each an independent worktree + PR. T-D goes first because it
+  and T3 touch the same files (`/Users/jn/code/mras-display/electron/main.js`, `src/App.tsx`) —
+  building the watchdog before multi-window would mean building it twice. **T4 deferred** (owner,
+  2026-06-11). Rationale below in *Dependencies*.
+- **Multi-display (T-D, owner decisions 2026-06-11):** `DISPLAY_COUNT` env, **default 4**, range
+  1–10. One fullscreen window per attached monitor when enough monitors exist; otherwise a tiled
+  grid on one screen (dev/demo on a single Mac is the accepted stand-in). **Shuffle = shuffled
+  cycle** (Fisher-Yates; every video plays once before any repeats, no immediate repeat across
+  reshuffles), independent per display. On identification, **all displays play the same composed
+  clip for now** — the composer's WS manager already broadcasts `play` to every connected client
+  (`/Users/jn/code/mras-composer/main.py`), so this is free. Each window connects with a
+  `screen_id` (e.g. `display-1`) as the **forward hook** for per-display composed clips later
+  (composer-side selector change, no kiosk rework).
 - **Redis (T1):** add a `redis` service to `mras-ops/docker-compose.yml`; resolver reads `REDIS_URL`
   and **falls back to the in-memory dict when Redis is absent** so native single-process dev/demo keeps
   working with zero new infra.
@@ -70,16 +86,59 @@ Health Monitor).
 
 ```
 T0 (validate latency)  ─ optional, do first, ~30 min, no code
+T-D multi-display      ─ display repo; FIRST — T3's watchdog must supervise the multi-window app
 T1 Redis cooldown      ─ adds redis to compose; foundational shared state
    └─ T2 burst queue   ─ asyncio.Queue is independent of T1; only a *Redis* queue would depend on it
-T3 kiosk watchdog      ─ independent; alert-wiring depends on P3-C4 (may defer)
-T4 AWS profile         ─ independent infra; best LAST (bundles the multi-cam code T1+T2 produce)
+T3 kiosk watchdog      ─ builds on T-D (per-window crash recovery); alert-wiring depends on P3-C4
+T4 AWS profile         ─ DEFERRED (owner, 2026-06-11)
 ```
 
-Recommended order **T1 → T2 → T3 → T4**: land the shared-state foundation, then the producer-side
-backpressure that benefits from it, then display resilience, then the cloud packaging that ships all of
-it. None hard-block each other, so they *can* parallelize across repos (vision vs display vs infra), but
-sequential keeps the live-demo stack stable and review simple.
+Recommended order **T-D → T1 → T2 → T3**: land the multi-window kiosk first (T3 supervises its final
+shape), then the shared-state foundation, then producer-side backpressure, then display resilience.
+T-D and T1/T2 are different repos so they *can* parallelize, but sequential keeps the live-demo stack
+stable and review simple.
+
+---
+
+## T-D — Multi-display kiosk + shuffled idle rotation  ·  repo: `mras-display`
+
+**Goal:** kiosk startup launches `DISPLAY_COUNT` displays (default **4**, 1–10) instead of one. Each
+display shuffles the idle pool independently (shuffled cycle, not loop). On identification, every
+display plays the composed clip (same clip for now; per-display clips are a later composer change).
+
+**Current state (read):**
+- `/Users/jn/code/mras-display/electron/main.js` — single `createWindow()`, one `BrowserWindow`.
+- `/Users/jn/code/mras-display/src/App.tsx` — sequential idle rotation (`idleIndex` +
+  `advanceIdle()` modulo the `/playlist` list); one WS client; two-element crossfade.
+- Composer broadcast already reaches all connected WS clients — no composer change needed for
+  same-clip-everywhere.
+
+**Where to start:**
+1. `electron/main.js`: read `DISPLAY_COUNT` (default 4, clamp 1–10). Create N windows; if
+   `screen.getAllDisplays().length >= N`, one fullscreen window per monitor, else tile a grid on
+   the primary display. Pass each window its identity via URL query (`?screen_id=display-<n>`).
+2. `src/App.tsx`: replace the sequential `advanceIdle` with a **shuffled cycle** — Fisher-Yates
+   the playlist, walk it, reshuffle on exhaustion with a no-immediate-repeat guard (new shuffle's
+   first item ≠ last played). Keep the drop-in `refreshPlaylist()` semantics (new videos join the
+   next cycle). Read `screen_id` from the query string; append it to the WS URL so the composer
+   can target displays later (it ignores it today).
+3. Extract the shuffle and the window-layout math into small pure modules so both are unit-testable
+   (`src/shuffle.ts`; layout helper for main.js).
+
+**TDD breakdown (red→green, one PR):**
+1. *(red)* `src/__tests__/shuffle.test.ts`: full coverage before repeat (a cycle of N plays each of
+   N videos exactly once); reshuffle never starts with the previous cycle's last item (seeded/mocked
+   RNG); 1-item and 2-item pools don't hang. App-level test: rotation follows the shuffled order,
+   not list order; `screen_id` from the query lands in the WS URL. Layout test: N=4 with 1 monitor →
+   2×2 grid bounds; N=2 with ≥2 monitors → fullscreen bounds per monitor; DISPLAY_COUNT clamped to
+   1–10.
+2. *(green)* Implement shuffle module, App wiring, multi-window main.js.
+
+**Verification (live, don't ask):** stack up (composer serving `/playlist` + `/ws`) →
+`DISPLAY_COUNT=4 npm run electron:dev` → 4 windows appear, each logging its own `screen_id` and a
+*different* shuffle order; let one video end → window advances per its own order. Then fire a real
+`POST /trigger` (httpx, enrolled person) → **all 4 windows** play the same composed clip, then each
+resumes its own idle shuffle. Capture `[kiosk]` console logs per window as evidence.
 
 ---
 
@@ -101,6 +160,11 @@ instead of a process-local dict that resets on restart (replaying ads for the sa
    `cooldown_until` bookkeeping); **else fall back to the existing in-memory dict**. Keep the
    `screen_id:uuid` key format unchanged.
 3. Keep the public resolver behavior identical (same cooldown semantics) — only the storage changes.
+
+**Semantics note (multi-display, 2026-06-11):** the cooldown key's `screen_id` means the
+**camera/screen-group**, NOT an individual display. One identification serves all `DISPLAY_COUNT`
+displays and consumes **one** cooldown — exactly what the current single `_SCREEN_ID` does. Do not
+"fix" this to be per-display.
 
 **TDD breakdown (red→green, one PR):**
 1. *(red)* Unit test with a **fake/in-memory Redis** (e.g. `fakeredis`, injected) asserting: first
@@ -151,6 +215,10 @@ crashes are detectable by the health monitor.
 no health endpoint.
 
 **Where to start:**
+- **Inner layer (new with T-D's multi-window app):** `webContents.on('render-process-gone')` per
+  window in `/Users/jn/code/mras-display/electron/main.js` → recreate just that window, so one
+  display crashing doesn't dark-screen the others or restart the whole app. `/health` reports
+  per-window status.
 - **macOS:** a `launchd` plist with `KeepAlive = true` targeting the Electron binary (ship the plist +
   load/unload instructions in the repo).
 - **Docker/Linux:** `restart: unless-stopped` on the kiosk service (if/when containerized) in compose.
@@ -213,6 +281,10 @@ docker-compose.aws.yml config` to confirm the override merges. **No live paid la
 
 ## Critical files
 
+- `/Users/jn/code/mras-display/electron/main.js` — T-D multi-window startup + layout; T3 per-window
+  crash recovery.
+- `/Users/jn/code/mras-display/src/App.tsx` (+ new `src/shuffle.ts`, tests in `src/__tests__/`) —
+  T-D shuffled idle cycle + `screen_id` wiring.
 - `/Users/jn/code/mras-vision/src/identity/resolver.py` — T1 cooldown backend, T2 queue/worker/drop.
 - `/Users/jn/code/mras-vision/tests/test_resolver.py` (+ new queue test) — T1/T2 TDD.
 - `/Users/jn/code/mras-ops/docker-compose.yml` — `redis` service (T1), kiosk `restart:` (T3).
