@@ -102,6 +102,27 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-11 — Cross-camera cooldown race CLOSED: atomic try_claim (T1 follow-up)
+**Changes:** mras-vision@`8c07f2c` (**PR #5 merged**, `origin/main` @ `4ef3056`; red `cdb0fe3`) —
+the cooldown store's two-step `is_on_cooldown`/`record_impression` collapsed into one atomic
+`try_claim(key)` in `/Users/jn/code/mras-vision/src/identity/cooldown.py`: default single-ad
+policy = one `SET NX EX` (exactly one racer wins the window, TTL lands with the key);
+`max_ads>1` = one Lua script (blocked-check→INCR→EXPIRE→threshold-flag, no boundary overshoot).
+Resolver inverts to claim→dispatch-if-won. Test dep `fakeredis`→`fakeredis[lua]` (lupa; test-only —
+real Redis runs Lua natively). 28/28 pytest.
+**Live (real Redis):** 5 concurrent claims → exactly 1 winner; fresh process blocked; Lua path
+2-allowed-then-blocked; every key TTL'd.
+**Learnings / design notes (load-bearing for T2):**
+- **The claim must stay at resolve time.** Deferring it to dispatch/dequeue time would let an
+  in-frame person enqueue ~180 duplicate triggers per 30s window (6fps), flooding the future T2
+  queue and starving other people's ads. Accepted cost: a T2 queue-drop burns the claim (person
+  waits out the 30s). Compatible extension if ever needed: claim token (key holds a UUID,
+  compare-and-delete release on drop).
+- fakeredis runs commands serially — it can contract-test concurrency but not reproduce a true
+  interleaving; the race proof is `SET NX` atomicity verified live against the real container.
+- In-memory fallback stays per-process (degraded mode only — cross-process safety requires Redis).
+**State:** race closed & live-verified. Phase 1 remaining: **T2 (burst queue) → T3 (watchdog)**.
+
 ## 2026-06-11 — T1 SHIPPED: Redis shared cooldown (TTL-only keys, in-memory fallback)
 **Changes:**
 - mras-vision@`a2ef3e4`+`26fda0b` (**PR #4 merged**, `origin/main` @ `67db4a4`) — new
