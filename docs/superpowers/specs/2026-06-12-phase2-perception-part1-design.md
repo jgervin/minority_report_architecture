@@ -112,9 +112,16 @@ color is pure numpy/cv2.
 }
 ```
 
-`viewer` appears only once a track has a minimum evidence window (configurable, default ~30
-frames); before that the keys are absent. Consumers must treat every perception key as optional
-enrichment.
+`viewer` appears only once a track has a minimum evidence window, **expressed in seconds**
+(configurable, default ~3s); before that the keys are absent. Consumers must treat every
+perception key as optional enrichment.
+
+**Evidence-window math (owner Q&A 2026-06-12):** the camera runs at its native ~30 fps but the
+pipeline processes every `FRAME_SAMPLE_RATE`-th frame (default 5) → **~6 evidence frames/sec**.
+So 30–60 raw evidence frames ≈ 5–10s of dwell time; the ~3s default gate ≈ 18 evidence frames,
+enough to smooth blinks/glances. Tuning knobs: lower the gate, or lower `FRAME_SAMPLE_RATE`
+(more frames/sec at higher CPU cost). Defining the gate in seconds keeps it valid if the sample
+rate changes. Objects need no gate — they report per-frame; only mood/attention need dwell.
 
 `gaze` event payload (existing `events` table, reserved `gaze` event_type — **no migration**):
 
@@ -139,6 +146,15 @@ enrichment.
 Single webcam → this is **head orientation** (yaw/pitch within a cone toward the display), the
 standard kiosk-distance proxy — not true eye-gaze. True gaze models are a per-piece upgrade behind
 the same analyzer interface if quality demands it (non-goal now).
+
+## Camera assumption (owner decision 2026-06-12)
+
+Production deployments will have multiple camera feeds, with a camera **near the display screen**
+acting as the authority for "is the ID'd person watching the ad" and as the main mood camera.
+**For part 1, the current default camera (`CAM_INDEX=0`) IS that display camera** — attention and
+mood are interpreted relative to it. The codebase stays single-camera (one capture loop, one
+`SCREEN_ID` per process); multi-camera feed/device management is **TODO-8** in
+`/Users/jn/code/minority_report_architecture/TODOS.md`, sequenced after a production-level test.
 
 ## Live debug view
 

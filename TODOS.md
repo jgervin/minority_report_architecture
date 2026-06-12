@@ -165,3 +165,26 @@ optional enrichment — `{}` must keep working. Attention-outcome scoring is a S
 **Effort:** M (human) → M (CC+gstack)
 **Priority:** P2 — after part 1 lands and signal quality is verified live
 **Depends on:** Phase 2 perception part 1 (tracker, analyzers, gaze events)
+
+---
+
+## TODO-8: Multi-Camera Feed / Device Management (Phase 2+)
+
+**What:** Support multiple camera feeds per location — enrollment/detection cameras plus a
+dedicated display-adjacent camera per screen that is the authority for attention ("is the ID'd
+person watching this ad") and mood. Includes device discovery/assignment, per-camera
+`SCREEN_ID`/role config, and cross-camera track correlation.
+
+**Why (owner decision, 2026-06-12):** Production venues will have more than one feed. The
+codebase today is strictly single-camera: one capture loop (`CAM_INDEX=0`), one `SCREEN_ID`
+per vision process. Phase 2 perception part 1 assumes the default camera IS the display camera
+(see
+`/Users/jn/code/minority_report_architecture/docs/superpowers/specs/2026-06-12-phase2-perception-part1-design.md`).
+
+**Where to start:** Likely one vision process per camera with a camera-role config
+(detection vs display-attention), shared identity stores, and per-screen gaze attribution.
+Cross-camera person correlation reuses ArcFace embeddings.
+
+**Effort:** L (human) → M (CC+gstack)
+**Priority:** P2 — explicitly sequenced AFTER a production-level test of perception part 1
+**Depends on:** Phase 2 perception part 1; production parallel composition (scale plan)
