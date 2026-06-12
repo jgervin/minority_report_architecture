@@ -102,6 +102,16 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-11 — fix: demo CLIs print actionable service-down errors (owner-reported)
+**Changes:** mras-ops@`2fccc31` (**PR #29 merged**, `origin/main` @ `164bbc4`) — owner ran
+`./enroll.sh` with the vision service down and got a 50-line httpx traceback. Both
+`/Users/jn/code/mras-ops/enroll.sh` and `compose-random.sh` now catch `ConnectError` and print
+which service is down, at which URL, and the exact start command (exit 1). Live-verified both
+paths. Note for later: `ConnectTimeout`/`ReadTimeout` still traceback (catch `httpx.HTTPError`
+if it ever bites). **Owner burst policy locked (mras-vision#9 CLOSED):** during a burst, serve
+what the queue/displays can handle; missing some people is accepted; dropped person self-heals
+in 30s. Don't re-litigate without the owner.
+
 ## 2026-06-11 — PER-DISPLAY CUSTOM ADS SHIPPED: multi-face vision, variant fan-out, demo CLIs — 4-ads-for-one-person and 2/2 two-person split PROVEN live
 **Plan:** minority_report_architecture@`8ab584b` (PR #9, `08d60a5`) —
 `docs/superpowers/plans/2026-06-11-per-display-custom-ads.md`: owner decisions (4 distinct
