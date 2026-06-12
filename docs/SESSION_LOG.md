@@ -102,6 +102,28 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-12 — Owner rules shipped: name ALWAYS written, full-length overlays, send-when-ready
+**Changes:**
+- mras-composer@`6554f12` (**PR #23 merged** → `6e63c57`; red `03cace2`) — three owner rules from
+  the second walk-up: (1) **a spoken name is always also WRITTEN** — the animated name-text
+  overlay composites on top of EVERY personalized variant, custom-Remotion or not (pixel-verified
+  at t=7s on a decorative fallingsnow variant: 8,276 white text pixels); (2) overlay windows are
+  **`OVERLAY_DURATION_FRACTION` × the base clip** (code default 0.5; was a 2s flash);
+  (3) **each variant ships to its display the moment it's ready** (arrivals now stagger
+  28.7/33.6/36.7/39.6s instead of all-at-the-end). 109 passed.
+- mras-ops@`7af4ebe` (**PR #30 merged** → `729dcc1`) — demo rig sets `OVERLAY_DURATION_FRACTION=1.0`
+  (full-length name overlays). Old composited clips purged (79 mp4s) from
+  `/Users/jn/code/mras-ops/output/`; composer rebuilt.
+**LATENCY REALITY (recorded for the production-architecture work):** first video is still ~28s
+because the owner's rules doubled the render workload — every variant = component render + name
+render, both now FULL-length (192 frames vs 48), all serialized through the single-flight
+sidecar (8 renders/trigger). Send-when-ready hides part of it, but the real fixes are
+(a) render the name overlay once per unique base geometry (~8→5 renders), and (b) sidecar
+render concurrency / horizontal render capacity — the <4s/2s production target. Neither built
+tonight; they belong to the production-scale plan.
+**State:** name-on-every-video + full-length overlays + staggered delivery live-verified on the
+real stack. Owner re-test pending (KIOSK_DEBUG=1 badge available since PR #11).
+
 ## 2026-06-12 — Live walk-up forensics: 3 bugs found in events data, fixed & merged
 Owner's first real walk-up test: Ragnar got no ad for exactly 30s; names spoken but rarely
 written. **Diagnosed entirely from the `events` table** (detection confidences, a
