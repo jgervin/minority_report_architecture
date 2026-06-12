@@ -138,3 +138,53 @@ ultrafast`, or run P2 natively outside Docker.
 **Effort:** S (human: ~30min) → trivial
 **Priority:** P1 — validate before building the rest of P2 assembly pipeline
 **Depends on:** Base ad video clip asset (any placeholder works for the benchmark)
+
+---
+
+## TODO-7: Use Perception Signals in Ad Selection / Generation (Phase 2 — part 2)
+
+**What:** Consume the Phase 2 perception signals (objects + colors, viewer mood, attention) as
+context for ad selection, personalization, and GenAI ad generation. Examples: mention a detected
+object ("nice red backpack"), pick creative matching mood, feed `scene_context` into the
+Phase 2 GenAI video path (P2-C4), use `gaze`/`playback` join data to score which ads hold
+attention.
+
+**Why:** Part 1 (signal identification — see
+`/Users/jn/code/minority_report_architecture/docs/superpowers/specs/2026-06-12-phase2-perception-part1-design.md`)
+deliberately produces signals nothing consumes yet. The value lands when the composer uses them.
+
+**Current state (after part 1):** `scene_context` arrives at the composer populated
+(`objects[]`, `viewer{mood, attending}`) on every personalized trigger; `gaze` events accumulate
+in Postgres. Composer ignores all of it.
+
+**Where to start:** In mras-composer's `/trigger` path, read `scene_context` and thread it into
+ad selection (the `ads` table) and/or overlay/template props. Treat every perception key as
+optional enrichment — `{}` must keep working. Attention-outcome scoring is a SQL join of
+`gaze` × `playback` events.
+
+**Effort:** M (human) → M (CC+gstack)
+**Priority:** P2 — after part 1 lands and signal quality is verified live
+**Depends on:** Phase 2 perception part 1 (tracker, analyzers, gaze events)
+
+---
+
+## TODO-8: Multi-Camera Feed / Device Management (Phase 2+)
+
+**What:** Support multiple camera feeds per location — enrollment/detection cameras plus a
+dedicated display-adjacent camera per screen that is the authority for attention ("is the ID'd
+person watching this ad") and mood. Includes device discovery/assignment, per-camera
+`SCREEN_ID`/role config, and cross-camera track correlation.
+
+**Why (owner decision, 2026-06-12):** Production venues will have more than one feed. The
+codebase today is strictly single-camera: one capture loop (`CAM_INDEX=0`), one `SCREEN_ID`
+per vision process. Phase 2 perception part 1 assumes the default camera IS the display camera
+(see
+`/Users/jn/code/minority_report_architecture/docs/superpowers/specs/2026-06-12-phase2-perception-part1-design.md`).
+
+**Where to start:** Likely one vision process per camera with a camera-role config
+(detection vs display-attention), shared identity stores, and per-screen gaze attribution.
+Cross-camera person correlation reuses ArcFace embeddings.
+
+**Effort:** L (human) → M (CC+gstack)
+**Priority:** P2 — explicitly sequenced AFTER a production-level test of perception part 1
+**Depends on:** Phase 2 perception part 1; production parallel composition (scale plan)
