@@ -102,7 +102,15 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
-## 2026-06-11 — E2EPerson identity leak: live ads addressed "E2E"; data purged + e2e teardown (PR #31)
+## 2026-06-12 — Identity stores purged to real people only (owner-mandated)
+**Changes (live data only, no code):** deleted **John Anderton** from BOTH stores (its qdrant
+vector was byte-identical to the owner's face — same misfire class as E2EPerson) and the orphan
+duplicate **Jason** row (`11111111-…`, no embedding). Final state, verified paired in postgres +
+qdrant: **Jason (`f487f5b0…`) and Ragnar Ervin (`0ae7f78b…`) only.** The owner's face now exists
+under exactly one name. Rule of thumb going forward: demo personas must use a face that isn't an
+enrolled real person, or not be enrolled at all.
+
+## 2026-06-12 — E2EPerson identity leak: live ads addressed "E2E"; data purged + e2e teardown (PR #31)
 
 **Changes:** mras-ops@14f577c (merge of PR #31, red 6531935 → green 0bdf30d) —
 `/Users/jn/code/mras-ops/tests/e2e/test_phase0_e2e.py` gains `_cleanup_e2e_identity()` (qdrant
