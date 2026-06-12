@@ -102,6 +102,34 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-12 — Live walk-up forensics: 3 bugs found in events data, fixed & merged
+Owner's first real walk-up test: Ragnar got no ad for exactly 30s; names spoken but rarely
+written. **Diagnosed entirely from the `events` table** (detection confidences, a
+TRIGGER_DROPPED at 02:07:29, a no_display flood) — the observability investment paid off.
+**Root causes & fixes:**
+1. **Stranger-flood starved real triggers** (mras-vision@`d9e4687`, **PR #10** → `b879658`):
+   every sub-threshold frame (~6–12/sec; the owners themselves scoring 0.5–0.678!) dispatched a
+   pointless composer call; the 8-slot queue drowned; Ragnar's identified trigger (0.79) was
+   DROPPED and his claim burned → the exact 30s lockout. Fix: **unidentified faces log but never
+   dispatch** — the idle loop is the standard tier. Phase 2 demographics re-opens the gate.
+2. **Name-never-written was ad ORDER, not overlays** (mras-composer@`adb7736`, **PR #21** →
+   `e8c8462`): `ORDER BY created_at DESC` deterministically dealt the two NEWEST ads — both
+   decorative/textless — to every 2-display person. Fix: `ORDER BY random()` per trigger; plus
+   the standard gate now runs BEFORE display assignment (strangers/blocked never reserve the
+   wall), and play messages carry `ad` + `person`. Residual: random can still deal an
+   all-decorative hand → **issue mras-composer#22** (needs a shows_name flag — schemas can't
+   distinguish text-bearing comps).
+3. **No visual debugging** (mras-display@`c6a015f`, **PR #11** → `faea3d3`): `KIOSK_DEBUG=1` →
+   each window overlays an HTML badge `screen_id · person · ad` from the play message —
+   independent of the video pipeline, so it names the chosen component even when an on-video
+   overlay fails (the owner's overlay idea, made failure-proof).
+**Live-verified post-merge:** Ragnar trigger → 2 displays got `comp-helloname` + `comp-snallfall`
+with `person: Ragnar Ervin` in the messages. Composer container rebuilt; vision picks up the
+gate on next native start; kiosk badge on next launch with KIOSK_DEBUG=1.
+**Operational guidance (recognition marginal in demo lighting):** re-enroll with BOTH photos
+(`./enroll.sh "Ragnar Ervin" ragnar.jpg ragnar2.jpg` — embeddings average) and consider
+`CONFIDENCE_THRESHOLD=0.62` for the venue; near-miss scores are visible in the activity feed.
+
 ## 2026-06-11 — fix: demo CLIs print actionable service-down errors (owner-reported)
 **Changes:** mras-ops@`2fccc31` (**PR #29 merged**, `origin/main` @ `164bbc4`) — owner ran
 `./enroll.sh` with the vision service down and got a 50-line httpx traceback. Both
