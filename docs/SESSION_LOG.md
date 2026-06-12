@@ -64,6 +64,19 @@ a fresh DB).
 **Recognition:** confidence threshold 0.68. Below threshold → `is_new_visitor=true` → standard ad
 (no name). Enrolled identities seed Qdrant collection `mras_embeddings` (512-dim Cosine).
 
+**Phase 2 perception (2026-06-12):** vision now tracks faces and enriches every trigger's
+`scene_context` with `objects[]` (label/confidence/color/bbox/source via yolo11n + k-means) and,
+after ~3s dwell, `viewer{track_id, mood, mood_confidence, attending, evidence_frames}`. Attention
+windows land in Postgres as `gaze` events (`attending_fraction` per track per ~3s window; uuid
+bound once identified) — "did X watch the ad" = join `gaze` × `playback` rows on screen + time
+window. **Debug view:** run vision with `PERCEPTION_DEBUG=1` → http://localhost:8001/debug/live
+(annotated MJPEG: yellow object boxes, green/red face boxes = attending/not, track id + mood).
+Env knobs (defaults): `VIEWER_MIN_EVIDENCE_S=3.0`, `ATTENTION_YAW_DEG=25`, `ATTENTION_PITCH_DEG=20`,
+`GAZE_FLUSH_S=3.0`, `YOLO_CONF=0.4`, `PERCEPTION_DEBUG=0`. First live frames lazy-warm the
+mood/attention models (yolo prewarms at startup; mediapipe downloads ~5MB to
+`~/.cache/mras-vision/` once). Identity dispatch is never blocked by perception — tracker failure
+falls back to untracked dispatch and logs a `perception`/`error` event.
+
 **Gotchas:**
 - The `mras-ops-frontend` container **bakes its source at build time** (no volume mount). After
   editing `frontend/src/*`, redeploy with `docker compose up -d --build mras-ops-frontend`.
@@ -101,6 +114,45 @@ with open("alice.jpg","rb") as f:
 ---
 
 ## Session Entries (newest first)
+
+## 2026-06-12 — Phase 2 perception part 1 SHIPPED (objects+colors, mood, attention, gaze, /debug/live)
+**Changes:**
+- minority_report_architecture@`562ae7e` (**PR #11 merged**) — approved design spec
+  (`docs/superpowers/specs/2026-06-12-phase2-perception-part1-design.md`), 13-task implementation
+  plan (`docs/superpowers/plans/2026-06-12-phase2-perception-part1.md`), TODO-7 (consume signals
+  for ads — part 2 backlog) and TODO-8 (multi-camera management, after production-level test).
+- mras-vision@`f6159d1` (**PR #11 merged**) — batch 1: `embed_all` returns `Face(embedding, bbox)`;
+  `src/perception/tracker.py` FaceTracker (IoU + ArcFace-cosine tiebreak, 2s expiry →
+  `drain_closed()`, per-track mood/attention evidence, dwell-gated `viewer_summary`, uuid binding);
+  aggregator analyzers take `(frame, tracks)`, `None` results omitted.
+- mras-vision@`a4a34cf` (**PR #12 merged**) — batch 2: multi-backend object gateway with fusion
+  (`src/perception/objects/gateway.py`; LocateAnything/VLM slot ready), yolo11n backend
+  (ultralytics 8.4.66, lazy load + prewarm, weights gitignored `*.pt`), k-means dominant-color
+  naming (crops downsampled to 64px), ObjectsAnalyzer (detect+color in ONE executor call —
+  review fix: kmeans was blocking the event loop).
+- mras-vision@`90a4ffd` (**PR #13 merged**) — batch 3: MoodAnalyzer (DeepFace emotion,
+  `detector_backend="skip"` on track crops), AttentionAnalyzer (mediapipe 0.10.35 **tasks API** —
+  no `mp.solutions` on py3.9; FaceLandmarker model atomically cached at
+  `~/.cache/mras-vision/face_landmarker.task`), gaze flusher (`gaze` event rows, watermark
+  advances before best-effort INSERT), resolver returns matched uuid (4 surgical lines),
+  full pipeline wiring + `GET /debug/live`.
+**Learnings:**
+- **The vision venv is Python 3.9.6**, not 3.11 — `X | None` unions need
+  `from __future__ import annotations` in every new module.
+- **Real bug caught by review, fixed red-first:** the head-pose Euler decomposition labeled
+  ROLL as yaw — a 30° head TURN read yaw≈0, so "attending" would never gate on turning away.
+  Proven + pinned deterministically with `cv2.projectPoints` round-trip tests (turn→yaw,
+  nod→pitch, facing→0/0) — no camera needed to verify pose math.
+- mediapipe ≥0.10.35 dropped `mp.solutions`; use `mediapipe.tasks` FaceLandmarker.
+- cv2.kmeans on full-size crops blocks the event loop inside the 800ms analyzer budget —
+  run detect+color in one executor call and downsample crops first.
+- `gh pr merge --delete-branch` fails from inside a worktree (branch checked out); merge
+  without it, then `git push origin --delete <branch>` as a STANDALONE command — the guard
+  hook false-positives on compound commands containing `push origin --delete`.
+**State:** all 3 PRs merged and green (81 tests, was 44). **Owner-run live verification PENDING**
+(camera needs owner terminal): walk-up with a colored object + look toward/away; check
+detection events' scene_context, `gaze` rows, and http://localhost:8001/debug/live with
+`PERCEPTION_DEBUG=1`. First live frames lazy-warm mood/attention models (one-time download).
 
 ## 2026-06-12 — HANDOFF.md refreshed for the next agents (PR #10)
 **Changes:** minority_report_architecture@`a2a384a` (**PR #10 merged** → `ef78e21`) —
