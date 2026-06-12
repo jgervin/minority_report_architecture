@@ -102,6 +102,25 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-11 — E2EPerson identity leak: live ads addressed "E2E"; data purged + e2e teardown (PR #31)
+
+**Changes:** mras-ops@14f577c (merge of PR #31, red 6531935 → green 0bdf30d) —
+`/Users/jn/code/mras-ops/tests/e2e/test_phase0_e2e.py` gains `_cleanup_e2e_identity()` (qdrant
+delete-by-filter on payload name via httpx REST + postgres DELETE via `docker exec
+mras-ops-postgres-1 psql`), an autouse session fixture that runs it even on test failure, and a
+regression test that resolves the helper *before* seeding. Live data cleanup (not in git): deleted
+qdrant point f7a980ca-f0e7-4957-949d-6a362a51a585 and the `E2EPerson` identities row.
+**Learnings:** `tests/e2e/fixtures/test_face.jpg` is the OWNER'S face — embedding it scores 1.0 vs
+E2EPerson, 1.0 vs John Anderton, 0.87 vs Jason (f487f5b0). So the e2e seed put the owner's face in
+qdrant under a second name and live recognition alternated uuids (Jason 03:18/03:19, E2EPerson
+03:47/03:48 detections) → ads spoke/wrote "E2EPerson". John Anderton's vector is IDENTICAL to the
+fixture (also the owner's face, demo persona — left untouched). There is also a duplicate `Jason`
+identities row uuid 11111111-1111-1111-1111-111111111111 with NO qdrant point (left untouched —
+review). Vision has no DELETE endpoint; e2e cleanup must hit the stores directly.
+**State:** identities = John Anderton, Jason (f487f5b0), Jason (11111111…), Ragnar Ervin; qdrant =
+3 points (no E2E*). Vision service was down during this session; cleanup helper validated against
+live stores with a synthetic seed instead of the full harness.
+
 ## 2026-06-12 — Owner rules shipped: name ALWAYS written, full-length overlays, send-when-ready
 **Changes:**
 - mras-composer@`6554f12` (**PR #23 merged** → `6e63c57`; red `03cace2`) — three owner rules from
