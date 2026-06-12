@@ -102,6 +102,14 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-12 — HANDOFF.md refreshed for the next agents (PR #10)
+**Changes:** minority_report_architecture@`a2a384a` (**PR #10 merged** → `ef78e21`) —
+`/Users/jn/code/minority_report_architecture/docs/HANDOFF.md` fully rewritten: state as of
+2026-06-12, the six LOCKED owner decisions, next work in order (production parallel composition
+— **needs a plan doc before building**; God View; Phase 2 perception; open issues; demo-day
+checks), process rules, run commands, gotchas. Fresh agents start there → SESSION_LOG → work.
+**State:** session closing; everything merged and journaled; no working-tree-only changes anywhere.
+
 ## 2026-06-12 — Identity stores purged to real people only (owner-mandated)
 **Changes (live data only, no code):** deleted **John Anderton** from BOTH stores (its qdrant
 vector was byte-identical to the owner's face — same misfire class as E2EPerson) and the orphan
