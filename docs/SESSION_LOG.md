@@ -130,6 +130,11 @@ with open("alice.jpg","rb") as f:
   (ultralytics 8.4.66, lazy load + prewarm, weights gitignored `*.pt`), k-means dominant-color
   naming (crops downsampled to 64px), ObjectsAnalyzer (detect+color in ONE executor call —
   review fix: kmeans was blocking the event loop).
+- mras-vision@`6f9e9e9` (**PR #14 merged**) — spec-gap fix found while writing the owner's
+  verification commands: scene_context only traveled on the /trigger wire (composer accepts it
+  but never logs it), so objects/mood were invisible to the events-table diagnostic flow.
+  Detection success events now carry scene_context. Volume note: ~0.5–2KB jsonb per detection
+  row (~6/s per face while in frame); revisit retention pre-production.
 - mras-vision@`90a4ffd` (**PR #13 merged**) — batch 3: MoodAnalyzer (DeepFace emotion,
   `detector_backend="skip"` on track crops), AttentionAnalyzer (mediapipe 0.10.35 **tasks API** —
   no `mp.solutions` on py3.9; FaceLandmarker model atomically cached at
