@@ -1,76 +1,96 @@
-# MRAS / AdFace — Handoff (M3/M4/M5 done; Phase 1 next)
+# MRAS / AdFace — Handoff (Phase 1 + per-display custom ads DONE; production scale next)
 
-Paste-able context for a new session. Read `docs/SESSION_LOG.md` (top entries) + `CLAUDE_PROJECT_BRIEF.md`
-for full detail; this is the consolidated state as of 2026-06-09 (M5 + the mras-ops review fixes and
-git-governance work have since merged — see the SESSION_LOG top entries).
+Paste-able orientation for a fresh agent. Consolidated state as of **2026-06-12**. If anything
+here disagrees with `docs/SESSION_LOG.md`, the SESSION_LOG wins — read its top entries first.
 
-**Next phase:** `docs/superpowers/plans/2026-06-11-phase-1-venue-readiness.md` — multi-camera venue
-readiness (Redis cooldown, P1→P2 backpressure, kiosk watchdog, AWS GPU profile), consolidated from
-`TODOS.md` TODO-1..4. Execute it ticket-by-ticket per the plan's closing checklist.
+One honest flag up front: the two big remaining work areas (**production parallel composition**
+and the **Phase 1 God View**) have NO executable plan doc yet — writing one (mirroring the
+existing plan format in `docs/superpowers/plans/`) is the first step before building either.
 
 ## What MRAS is
-Vision-triggered **personalized digital ads** (Minority Report style). Camera recognizes/enrolls a face →
-composer picks an ad, synthesizes personalized TTS, **renders an animated overlay**, composites a video,
-and pushes it to a kiosk over WebSocket.
 
-## Repos (under `/Users/jn/code/`)
-- `minority_report_architecture` — docs/orchestration hub (SESSION_LOG, specs, plans, this file).
-- `mras-composer` — Python FastAPI + ffmpeg. `/trigger`, `/preview`, assembles clips. Node-free image.
-- `mras-overlays` — Node/Remotion sidecar. Renders transparent ProRes-4444 overlays over HTTP.
-- `mras-ops` — Docker compose (postgres, qdrant, composer, ops-api, ops-frontend) + the ad pool `assets/`.
-- `mras-vision` — face recognition; runs **native macOS** (webcam), not Docker.
-- `mras-display` — Electron kiosk player (the live screen).
+Vision-triggered personalized ads (Minority Report style): a camera recognizes/enrolls a face →
+the composer selects custom Remotion ad(s), synthesizes name TTS, composites video(s), and pushes
+each kiosk display ITS OWN clip over WebSocket. Six repos under `/Users/jn/code/`:
+`minority_report_architecture` (docs/orchestration hub — you are here), `mras-vision` (native
+macOS, camera/recognition), `mras-composer` (FastAPI + ffmpeg), `mras-overlays` (Remotion render
+sidecar), `mras-ops` (Docker compose + ops UI + demo CLIs), `mras-display` (Electron kiosk).
 
-## M3 — Live-kiosk overlay render sidecar (DONE, merged)
-- `mras-overlays` is a **warm HTTP render sidecar** (compose service): `POST /render {compositionId, props}`
-  → transparent `.mov`. Bundles once + reuses one headless Chromium. ProRes 4444 + `imageFormat:png` +
-  `pixelFormat:yuva444p10le` (alpha). Runs `tsx` directly (not `npm start`) + compose `init:true` so
-  SIGTERM closes Chromium cleanly — it stops with `docker compose down`, not a separate process.
-- `mras-composer` `/trigger`: identified viewer → synthesize TTS → render the name overlay via the
-  sidecar → `assemble(overlay_inserts=…)` → WS "play". No caching (renders fresh; warm ≈ 1–3s).
-- Kiosk burns nothing client-side; it just plays the composited mp4 URL.
+## How to work here (non-negotiable — read CLAUDE.md first, it governs everything)
 
-## M4 — Custom-component ad authoring (DONE, merged)
-Advertisers upload their own Remotion components and bind them to ads.
-- **Sidecar**: `POST /components {name, source}` writes `src/custom/<slug>.tsx`, **hot re-bundles**,
-  registers composition **`comp-<slug>`** (hyphen — Remotion forbids `_`). Applies each component's
-  **zod schema defaults** at render (`Root` calculateMetadata + render with `composition.props`) — else
-  omitted props are `undefined` → NaN → blank.
-- **DB** (postgres): `components` (uuid, slug, status, props_schema) + `ads` (uuid, base_video,
-  component_id FK, default_props, personalized_field, is_active).
-- **ops-api**: `POST /components` (multipart → proxy to sidecar → persist, returns the **DB uuid** as
-  `id`), `GET /components`, `POST/GET/PATCH /ads`.
-- **composer**: `POST /preview` (render a component over a base, **spans the full clip** by default,
-  trims/validates base path, graceful errors) → mp4 URL; `/trigger` selects the active custom ad for an
-  identified viewer and renders it personalized.
-- **ops-frontend** (`http://localhost:3000`): **Authoring** + **Activity Feed** tabs; "?" help panel;
-  upload component; **base video = dropdown** of the pool (no free text); editable Props (JSON);
-  **Create Ad auto-renders the finished ad and pops it up** (+ per-ad ▶ preview).
-- **11 example overlays** in `/Users/jn/code/mras-overlays/examples/` (FallingSnow, Typewriter,
-  LightLeak, ConfettiBurst, RisingBubbles, PeekerCharacter, FishSwim, LowerThirdBanner, ShootingStars,
-  Fireflies, KineticText) + HelloName. Dependency-free, transparent overlays.
+- **Read at session start:** `CLAUDE.md`, `docs/SESSION_LOG.md` (top-to-bottom; its Operational
+  Reference is "how to run it"), `TODOS.md`, `adface_architecture.md`.
+- **Git:** raw `git`/`gh` is hook-blocked; delegate ALL git to the `git-flow-manager` subagent
+  (it opts in with the `CLAUDE_GIT_OK=1` prefix). One worktree per ticket off `origin/main`;
+  branch `{feat,fix,chore}/{slug}`; never push to `main` (sole exception: a SESSION_LOG-only
+  commit via the exact literal `CLAUDE_GIT_OK=1 git push origin main`). Guard quirks: never use
+  the literal word "main" as a branch start-point (use HEAD); pass commit messages/PR bodies via
+  temp files (`-F`/`--body-file`); run `git push` and `gh pr create` as separate commands.
+- **TDD:** failing test committed SEPARATELY before the implementation (red→green visible in
+  history). **Live E2E against the real stack without asking** — unit-green has repeatedly hidden
+  stale-container/integration breakage. Self-review + a code-review pass per PR; check the PR
+  base branch before merging; rebuild the affected container after merge
+  (`docker compose up -d --build <svc>` in mras-ops).
+- **Journal:** prepend a dated SESSION_LOG entry (with `repo@sha`) for every landing. If you
+  finished work without journaling, you have not finished.
+- **Check open GitHub issues** in all repos before starting (`gh issue list -R jgervin/<repo>`
+  via git-flow-manager) — they are the parking lot for deferred findings.
 
-## How to run / test
-- Start stack: `cd /Users/jn/code/mras-ops && docker compose up -d --build` (vision is native, separate).
-- Migrations on an existing DB volume don't auto-apply: `docker compose exec -T postgres psql -U mras -d mras -f /docker-entrypoint-initdb.d/002_custom_components.sql`.
-- Authoring: open `http://localhost:3000` → Authoring tab → upload a component (e.g.
-  `/Users/jn/code/mras-overlays/examples/FallingSnow.tsx`) → create an ad (base from dropdown, Active) →
-  the finished ad pops up. Props default to spanning the whole clip; use a bright color to see effects.
-- **Generated + preview clips land in `/Users/jn/code/mras-ops/output/`** (host bind-mount, openable in
-  Finder) and are served at `http://localhost:8002/media/<name>.mp4`.
-- Live trigger without camera: seed an identity + `POST http://localhost:8002/trigger`
-  `{"trigger_id":"t1","uuid":"<id>","is_new_visitor":false}` (see SESSION_LOG for the psql seed).
-- Tests: composer `python -m pytest`; sidecar `npx tsx --test`; frontend `cd frontend && npm test`.
+## What's DONE (all merged & live-verified)
 
-## Conventions (CLAUDE.md)
-Branch/worktree per task; **TDD red→green, failing test committed separately**; one PR per task; commit
-trailer `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`; **no self-merge to main without the
-user's OK**; **§0: always reference files by absolute path**; keep `docs/SESSION_LOG.md` current.
+Phase 0 · Phase 0.5 (M0–M5) · Phase 1 core (T-D 4-window kiosk with shuffled idle, T1 Redis
+cooldown + atomic SET-NX claim, T2 bounded trigger queue, T3 launchd watchdog + per-window
+recovery + `/health` :8003) · per-display custom ads (T-V multi-face vision + perception seam,
+T-C distinct-ad variant fan-out with targeted WS delivery, enroll.sh + compose-random.sh) ·
+walk-up fixes (identified-only dispatch, random ad order, name ALWAYS written on every variant,
+fraction-length overlays — rig runs 1.0 = full clip, send-each-variant-when-ready, KIOSK_DEBUG=1
+HTML badge) · identity stores purged to real people only (Jason, Ragnar Ervin).
 
-## Open work
-- **M5 — Authoring props-display** (spec: `docs/superpowers/specs/2026-06-09-m5-props-display.md`):
-  auto-render a component's prop fields (labeled, default-filled) at upload via `zod-to-json-schema`,
-  instead of a blank JSON box. Blocked-investigation noted: a component's named `schema` export isn't
-  exposed via runtime dynamic import — needs build/upload-time extraction. **Not yet built.**
-- Deferred from earlier: true-3D (three.js) overlay pack; sidecar sandbox/isolation for untrusted code
-  (the going-live security blocker — filed as GitHub issues); rotation/targeting beyond `is_active`.
+## Owner decisions — LOCKED, do not re-litigate without the owner
+
+1. Burst drops are ACCEPTED: serve what the queue/displays can handle; missed people self-heal
+   in 30s (mras-vision#9 closed deliberately).
+2. Redis = transient TTL'd flags ONLY (every key expires, ≤24h cap); durable play history
+   (dashboard/billing/proof) lives in the PostgreSQL `events` table.
+3. A spoken name is ALWAYS also written; overlay window = OVERLAY_DURATION_FRACTION × base.
+4. Unidentified faces are logged but never dispatched (Phase 2 demographics reopens that gate).
+5. No test/persona identities in the live stores (the E2EPerson/John Anderton lesson).
+6. T0 (latency benchmark) and T4 (AWS profile) are ON HOLD — current single-host architecture is
+   not the production shape.
+
+## What's NEXT (in recommended order)
+
+1. **Production parallel composition (no plan yet — write it first).** Target: ~4 people/area
+   each served <4s (goal 2s), 1–4 areas/location, ~1000 locations. Today first-video ≈ 28s; the
+   bottleneck is the single-flight Remotion sidecar (every variant = component render + name
+   render, full-length). Known quick wins: dedupe the name render per base geometry; sidecar
+   render concurrency. Real work: horizontally scalable render tier.
+2. **Phase 1 God View** — full P3 scope is specced in `adface_architecture.md` ("P3 God View —
+   Phase 1 Scope"): vision/generation inspectors, playback monitor, P3-C4 health monitor (kiosk
+   `/health` is already waiting — mras-display#10), identity browser, RBAC, campaign manager,
+   D17 remote config. The `events` contract powering it already exists and works.
+3. **Phase 2 perception** — analyzers (demographics, objects held, apparel, direction) plug into
+   the existing seam (`/Users/jn/code/mras-vision/src/perception/aggregator.py`, scatter-gather
+   with deadline → D9 `scene_context`). The hard prerequisite is face TRACKING (evidence over
+   30–60 frames).
+4. **Small open issues:** mras-composer#22 (guarantee ≥1 text-bearing ad — needs a shows_name
+   flag), mras-display#8 (lockfile drift), mras-display#10 (alert wiring), mras-vision#7 (Redis
+   queue if multi-process). Component sandboxing (deferred since M4) is REQUIRED before any
+   third-party advertiser uploads code.
+5. **Demo-day checks (owner-run, camera needs a real terminal):** 2-monitor fullscreen smoke,
+   cooldown restart-survival walk-up, multi-photo re-enroll / CONFIDENCE_THRESHOLD≈0.62 tuning.
+
+## Run it
+
+```bash
+cd /Users/jn/code/mras-ops && ./start-mras.sh            # stack + native vision (owner terminal!)
+cd /Users/jn/code/mras-display && DISPLAY_COUNT=4 KIOSK_DEBUG=1 NODE_ENV=development npm run electron:dev
+cd /Users/jn/code/mras-ops && ./enroll.sh "Name" photo.jpg [more...]
+cd /Users/jn/code/mras-ops && ./compose-random.sh "Name"
+curl http://localhost:8003/health                        # kiosk per-window health
+```
+
+Gotchas: port 5173 must be free or Electron silently loads stale code; curl/wget are blocked for
+agents (use `/Users/jn/code/mras-vision/.venv/bin/python` + httpx); vision tests run via that
+venv; the ops-frontend container bakes source at build time (rebuild after edits); diagnose live
+problems from the `events` table first — it has solved every bug so far.
