@@ -61,8 +61,16 @@ a fresh DB).
 
 **TTS:** ElevenLabs primary → **Google Gemini** fallback (MisoOne was replaced). Keys in `mras-ops/.env`.
 
-**Recognition:** confidence threshold 0.68. Below threshold → `is_new_visitor=true` → standard ad
-(no name). Enrolled identities seed Qdrant collection `mras_embeddings` (512-dim Cosine).
+**Recognition:** confidence threshold `CONFIDENCE_THRESHOLD` (code/example default 0.68; **lowered to
+0.67 in `mras-vision/.env` local override as of 2026-06-17** because live "Jason" scores cluster ~0.679).
+Below threshold → `is_new_visitor=true` → standard ad (no name). Enrolled identities seed Qdrant
+collection `mras_embeddings` (512-dim Cosine). Live recognition is marginal — re-enroll under demo
+lighting for reliability (pending).
+
+**Perception CPU throttle (2026-06-17):** DeepFace-emotion + YOLO are throttled to ~1 Hz via
+`PERCEPTION_ANALYZER_INTERVAL_S` (default 1.0s, set in `build_analyzers()`). Without it they ran
+~6x/sec (capture loop awaits `process_frame`), pegging a GPU-less Mac and causing track churn. Identity
+embedding + tracking still run every frame.
 
 **Phase 2 perception (2026-06-12):** vision now tracks faces and enriches every trigger's
 `scene_context` with `objects[]` (label/confidence/color/bbox/source via yolo11n + k-means) and,
@@ -114,6 +122,18 @@ with open("alice.jpg","rb") as f:
 ---
 
 ## Session Entries (newest first)
+
+## 2026-06-17 — Two perception bugs fixed from live-cam forensics: viewer float32 serialization + analyzer CPU throttle
+**Changes:**
+- `mras-vision@c78417e` (PR #15, merged) — coerce DeepFace's numpy `float32` emotion score to native `float` in `src/perception/analyzers/mood.py`. viewer-enriched `scene_context` now JSON-serializes.
+- `mras-vision` PR #16 (OPEN, branch `fix/throttle-perception-analyzers`, green impl `7ed4ecc`) — throttle DeepFace-emotion + YOLO to ~1 Hz via `PERCEPTION_ANALYZER_INTERVAL_S` (default 1.0s); `MoodAnalyzer`/`ObjectsAnalyzer` take `min_interval_s`+injectable `clock`, objects serves last result from cache while throttled. 85 tests pass.
+- `mras-vision/.env` (working-tree-only, gitignored) — `CONFIDENCE_THRESHOLD` 0.68→0.67.
+**Learnings:**
+- **float32 silently killed the whole viewer/mood feature.** DeepFace emotion scores are numpy `float32`; they rode into `viewer.mood_confidence`, so once a track passed the 3s dwell gate, `json.dumps` raised `Object of type float32 is not JSON serializable` on BOTH paths — the detection-success log (`resolver._log_event`) AND the composer `/trigger` dispatch (`resolver._dispatch`). Net effect: successful detections never carried `viewer`, and viewer-enriched triggers showed up only as `dispatch/error` rows. Fix = cast at the source in `mood.py`.
+- **Heavy analyzers ran ~6x/sec → CPU/thermal spiral → track churn.** The capture loop `await`s `process_frame`, and every sampled frame ran YOLO full-frame + DeepFace per track. On a GPU-less Mac this thermally throttled and pushed per-frame latency past the 2s track-expiry, so one person was re-tracked as `t-1…t-13` with null-uuid gaps. Throttling the two heavy models to ~1 Hz (identity+tracking still every frame) dropped distinct tracks over 3 min from **6+ → 2** and let personalized ads fan to all 4 displays. Verified live.
+- **Recognition is marginal, not broken.** Live "Jason" scores cluster ~0.679 against the 0.68 threshold; lowering to 0.67 lifted recognition 1/181 → 3/60 — enough to fire ads but still occasional. Robust fix is **re-enrollment under demo lighting** (owner deferred it for now).
+- **Run-script gotcha:** `start-mras.sh` already launches native vision in the foreground; `run-vision-native.sh` is only for "Docker up but vision down." Running both collides on port 8001 (the second errors "port already in use"). During model prewarm the port is bound but `/health` doesn't answer yet (~20-40s cold).
+**State:** Bug A fixed+merged, live-verified (viewer lands in detection-success, float32 dispatch errors → 0). Bug B live-verified, **PR #16 awaiting merge**. Pending: merge #16; re-enroll Jason for reliable recognition; optional capture `BUFFERSIZE=1` + ML thread caps if churn returns under heavier load; confirm TTS speaks the name (last `tts_attempt` payload was empty `{}`); on-screen name text still Phase 0.5 (Remotion).
 
 ## 2026-06-12 — Phase 2 perception part 1 SHIPPED (objects+colors, mood, attention, gaze, /debug/live)
 **Changes:**
