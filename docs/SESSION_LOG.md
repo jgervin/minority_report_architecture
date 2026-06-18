@@ -123,6 +123,16 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-18 — Adaptive enrollment Plan 2 (gated auto-augmentation + reversibility) implemented → PRs open
+**Changes (branch `feat/adaptive-enrollment-auto-augment` in both repos; TDD red→green, failing test committed separately before each impl):**
+- `mras-vision` PR #19 (`4d418c2`…`28b5504`, 8 commits) — new `src/identity/quality.py` (per-frame quality gate: bbox area / sharpness / pose / single-face + composite score); new `src/identity/augment.py` (`GateConfig`/`IdSample`/`Candidate`, pure `evaluate_candidate` — dwell ≥5s + ≥10 agreeing quality-passing frames + best conf ≥0.90; `apply_augmentation` — admission dedup <0.95, `add_member(source='auto')`, `augment/success` audit event, cap-12 diversity eviction that never evicts `enroll` anchors); `tracker.py` `Track` gains `id_samples` deque + `augmented` flag + `add_id_sample`; new `src/perception/augment_reporter.py` (periodic task fires augmentation once per track when dwell gates first met — avoids racing the gaze drain; best-effort, never crashes perception); `main.py` records an `IdSample` per resolved face + starts/cancels the reporter; `resolver.py` `resolve()` now returns `(uuid, confidence)`. Full suite **105 passed** (was 92), `import main` ok.
+- `mras-ops` PR #33 (`3883e2a`,`07f4d01`) — `scripts/purge_auto_embeddings.py` `purge(db, qdrant, uuid, since=None)` deletes `source='auto'` rows + Qdrant points (anchors untouched); `tests/pytest.ini` (`asyncio_mode=auto`). Unit test 1 passed.
+**Learnings / gotchas:**
+- `resolve()` signature change to a tuple broke `tests/test_multiface.py` (mocks returned a bare value); fixed the mocks to return `(uuid, conf)` tuples — those weren't in the plan but were affected call sites.
+- mras-ops has **no unit-test harness** (only the docker-gated `tests/e2e/`); the purge unit test was run with the **mras-vision .venv** (`cd /Users/jn/code/mras-ops && /Users/jn/code/mras-vision/.venv/bin/python -m pytest tests/test_purge.py`) because system python lacks `qdrant_client`.
+- Added `from __future__ import annotations` to the purge script (vs the plan's verbatim text) so its `str | None` annotation works on the py3.9 venv (the vision .venv is 3.9.6) as well as 3.11; behavior unchanged.
+**State:** Both PRs **open, NOT merged** — `mras-vision` #19 (base main), `mras-ops` #33 (base main). Builds on Plan 1 (already merged: `mras-ops@1d75a7b`, `mras-vision@1237a6f`). **Live camera E2E pending owner** (enroll Jason → walk-up under varied lighting → `augment/success` event + new `source='auto'` row → confidence rises → run purge CLI → confirm `auto` rows/points gone, `enroll` anchors remain). Follow-up: `pose_deg` is a near-frontal proxy (0.0) — wire real head-pose yaw/pitch if the attention analyzer exposes it. (Concurrent work: another agent on `mras-composer` only; no overlap.)
+
 ## 2026-06-18 — Live /enroll segfault root-caused; Jason re-enrolled via standalone; serialized-inference fix planned (PR #14)
 **Changes:**
 - Jason re-enrolled **additively** under current lighting via a standalone script (`/tmp/standalone_enroll.py`, reuses `run_enrollment(additive=True)`; run with vision DOWN so no camera loop). Jason gallery now `{enroll: 2}`, Qdrant **3 points**. Operational — no repo change.
