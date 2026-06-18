@@ -123,6 +123,16 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-18 — Live /enroll segfault root-caused; Jason re-enrolled via standalone; serialized-inference fix planned (PR #14)
+**Changes:**
+- Jason re-enrolled **additively** under current lighting via a standalone script (`/tmp/standalone_enroll.py`, reuses `run_enrollment(additive=True)`; run with vision DOWN so no camera loop). Jason gallery now `{enroll: 2}`, Qdrant **3 points**. Operational — no repo change.
+- `minority_report_architecture` PR #14 (docs-only) — serialized-inference-worker **spec + plan**.
+**Learnings (root cause, confirmed via systematic debugging):**
+- **Live `POST /enroll` segfaults** because DeepFace/TF/mediapipe native inference is **not safe to call concurrently**. The camera loop calls `DeepFace.represent` **every frame** (the detector runs even with the lens covered / no face in view), colliding with the enroll's `embed` on the event-loop thread → shared TF model/session/MPS(Metal) corruption → native crash. Proven: standalone `embed()` works (dim 512); crash only inside the running server; **lens-covering did NOT help** (camera still calls `represent` every frame); gallery/Qdrant unchanged after the crash → our additive code is clean, the crash is in the embed step.
+- **Workaround that works:** enroll in a standalone process (no camera loop) — process isolation means no shared TF/Metal state, no concurrency.
+- **Fix (PR #14 plan):** route ALL native inference (embed/mood/objects/attention/enroll/prewarm) through one `max_workers=1` worker → no concurrent inference, Metal thread-affinity, also removes the Bug-B thread oversubscription. NOTE: camera `cap.read` (`capture.py`) STAYS on the default pool — it's I/O, not inference.
+**State:** Jason re-enrolled (gallery now covers 2 lighting conditions) — **restart vision + walk up to confirm recognition** clears threshold reliably. Serialized-inference fix designed + planned (PR #14), NOT implemented. Remaining: implement PR #14 (makes live `/enroll` safe to use while running); adaptive enrollment Plan 2 (auto-augmentation, PR #13); temporal orchestration plans (PR #12).
+
 ## 2026-06-18 — Adaptive enrollment Plan 1 (gallery foundation) implemented → PRs open
 **Changes (branch `feat/adaptive-enrollment-gallery` in both repos; TDD red→green per file):**
 - `mras-ops` PR #32 (`183f9f7`) — `db/migrations/003_identity_embeddings.sql`: multi-embedding gallery table (`id, identity_uuid FK, embedding float4[], source 'enroll'|'auto', quality, provenance jsonb, created_at`) + indexes + backfill. **Applied to the dev DB — 2 enroll anchors (Jason, Ragnar).**
