@@ -123,6 +123,13 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-18 — Adaptive enrollment Plan 1 (gallery foundation) implemented → PRs open
+**Changes (branch `feat/adaptive-enrollment-gallery` in both repos; TDD red→green per file):**
+- `mras-ops` PR #32 (`183f9f7`) — `db/migrations/003_identity_embeddings.sql`: multi-embedding gallery table (`id, identity_uuid FK, embedding float4[], source 'enroll'|'auto', quality, provenance jsonb, created_at`) + indexes + backfill. **Applied to the dev DB — 2 enroll anchors (Jason, Ragnar).**
+- `mras-vision` PR #17 (`54a9220`…`502fe31`) — `src/identity/gallery.py add_member` (Postgres row + Qdrant point, point-id = row id, payload.uuid groups); `resolver.py best_identity()` group-by-uuid max-score + `limit=QDRANT_GALLERY_FANOUT` (15); `enroller.py` additive (`source='enroll'`, non-destructive) re-enroll + `/enroll` `additive` form field. Full suite **90 passed** (was 85; +5).
+**Learnings:** resolution change is backward-compatible — single-hit payloads resolve identically through `best_identity`, so existing resolver tests stayed green. Migration is idempotent (IF NOT EXISTS + guarded backfill); initdb runs it on fresh volumes, apply manually on existing (done).
+**State:** Plan 1 code complete, **PRs #32 + #17 open, NOT merged.** Cross-repo dep: merge **mras-ops #32 first**, then **mras-vision #17** (vision gallery writes need the table). **Live verification pending (owner + camera):** additively re-enroll Jason under current lighting (`POST /enroll` with `additive=true`), walk up, confirm recognition clears threshold consistently (vs prior 3/60). Then adaptive enrollment Plan 2 (gated auto-augmentation, docs PR #13) and the temporal-orchestration plans (PR #12) remain to implement.
+
 ## 2026-06-17 — Two perception bugs fixed + two features designed & fully planned (orchestration, adaptive enrollment)
 **Changes:**
 - `mras-vision@c78417e` (PR #15, MERGED) — coerce DeepFace's numpy `float32` emotion score to native `float` in `src/perception/analyzers/mood.py`. viewer-enriched `scene_context` now JSON-serializes.
