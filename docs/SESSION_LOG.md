@@ -123,6 +123,11 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-19 — Planning docs merged to main (specs/plans now discoverable)
+**Changes:** merged the three DOCS-ONLY planning PRs in `minority_report_architecture`: #14 serialized-inference (`cf85e0f`), #13 adaptive-enrollment (`0b02466`), #12 temporal-orchestration (`e3a14f6`). `main`@`e3a14f6`.
+**Why this mattered:** the spec/plan markdown previously lived ONLY on unmerged `chore/*-spec` branches, so agents working from a clean `main` (and `GODVIEW_HANDOFF.md`'s references) could NOT find them — Agent D building #12 hit exactly this and worked from its task brief instead. Now all 6 specs + 8 plans are on `main` under `docs/superpowers/specs/` and `/plans/`.
+**Naming gotcha (caused confusion):** PR numbers COLLIDE across repos. The DOCS specs/plans are `minority_report_architecture` #12/#13/#14/#15; the CODE is in component repos with independent numbering (e.g. enrollment **code** = `mras-vision` #19 + `mras-ops` #33; orchestration **code** = `mras-composer` #24 + `mras-vision` #20 + `mras-display` #12). "Merge #13" earlier meant the enrollment CODE, not the docs PR #13. Always qualify PRs as `<repo> #<n>`.
+
 ## 2026-06-19 — Temporal orchestration #12 Plan 3 + activation shipped → 3 OPEN PRs (must merge together)
 **Changes (TDD red→green, failing test committed separately in each repo; 3 repos):**
 - `mras-vision` PR #20 (branch `feat/temporal-orchestration-presence`, base main, OPEN). `mras-vision@bfbd14a` (impl) on `@1d32454` (red test). New `src/perception/presence.py` `PresenceReporter` — periodic POST of identified (uuid-bound) live tracks per `screen_id` to composer `/presence` (newest-first, deduped, best-effort; env `COMPOSER_URL`/`SCREEN_ID`/`PRESENCE_REPORT_S`). Started in `main.py` lifespan next to `GazeLogger`/`AugmentReporter`, cancelled on shutdown. New `tests/test_presence.py` (6). **Full vision suite 111 passed.**
