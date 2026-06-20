@@ -114,7 +114,16 @@ detections, latest success post-dates all errors). Commit `31ad695` in mras-visi
 
 ---
 
-## TODO-5: Validate ffmpeg Software Latency Under 5s (Phase 0 — early)
+## TODO-5: Validate ffmpeg Software Latency Under 5s (Phase 0 — early) — ✅ DONE (2026-06-19)
+
+**Resolution:** Benchmarked software `libx264` (no VideoToolbox) in Docker (`jrottenberg/ffmpeg`) on the M3,
+matching the production assembler's command shape (`/Users/jn/code/mras-composer/src/assembly/assembler.py`:
+`-c:v libx264 -preset fast -c:a aac`, audio via `amix`). 4 runs/config, cold run discarded, median of 3.
+Worst case — a synthetic 30s 720p base (top of the 15–30s range) at `-preset fast` — assembled in **~1.9s
+median docker-wall** (~1.56s pure encode); a real 6.35s 720p MRAS ad ran in **~1.0s**. `-preset ultrafast`
+roughly halves encode (30s: 1.56s→0.83s) as headroom. **All configs PASS the 3s target and 5s budget — no
+mitigation needed; the "VideoToolbox required" modeling assumption does not hold.** Caveat: no real asset
+>12s exists yet, so the 30s figure is a synthetic upper bound (conservative).
 
 **What:** Run a timed ffmpeg benchmark on the M3 in Docker (no VideoToolbox) to confirm
 the <5s end-to-end latency budget holds with software encoding.
