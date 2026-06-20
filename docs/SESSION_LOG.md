@@ -123,6 +123,34 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-19 — Orchestration regression found via live E2E: playback events dropped → fixed (PR #25)
+**How it surfaced:** owner noticed the Activity Feed (`localhost:3000` → "Activity Feed" tab) `video` column was empty even though personalized clips played. Verified live with Playwright: the page renders fine; the events ARE in Postgres (2197 rows; this walk-up wrote 196 `detection` + 65 `gaze` + 2 `composition/orchestrated`). The empty column was the symptom of a real regression, not a display bug.
+**Root cause:** the temporal-orchestration activation (composer #24) replaced the legacy one-shot fan-out — which was the ONLY emitter of `playback`/`dispatched` events — with the orchestrator runtime. The runtime's `_send_play` (lifespan closure, `main.py`) sent the WS `play` but logged NOTHING (the `OrchestratorRuntime` has no DB handle). So `playback` events stopped entirely. **Two impacts:** (1) the feed's ▶ link (frontend `App.tsx:66` only renders it for `playback`/`dispatched` events' `payload.video`) went blank for personalized ads; (2) the `gaze × playback` attention-outcome join (the "did X watch the ad" capability / basis of TODO-7) lost its playback side — accumulating `gaze` rows with nothing to join. Tests missed it because activation deleted the old fan-out playback tests and the new orchestrated test only asserts `composition/orchestrated`.
+**Fix:** `mras-composer` PR #25 (branch `fix/orchestrated-playback-events`, base main, OPEN). TDD red→green, separate commits: `8aec0b6` (red test) → `b667310` (green). Extracted module-level `_dispatch_play(db, ws, display, url, owner, rnd)` in `main.py` = WS play + `_log` a `playback`/`dispatched` event `{video: <filename>, screen_id, person}`; the `_send_play` closure delegates to it. Frontend unchanged. New `tests/test_trigger_orchestrated.py::test_orchestrated_play_logs_playback_event`. **Full composer suite 140 passed, 1 deselected.**
+**Design notes:** `owner` (uuid) is the event `trigger_id` (orchestration is decoupled from the detection trigger; the gaze×playback join keys on screen_id + time, not trigger_id). Render-gap resumes (`runtime._resume_pending`) also flow through `_send_play` → logged; failed renders (`url is None`) route to `_send_idle` → correctly log no playback. `_dispatch_play` intentionally does NOT guard `url is None` (callers never pass it).
+**State:** PR #25 OPEN/MERGEABLE, not merged. **Owner-pending live re-verify:** after merge + `start-mras.sh` rebuild, walk up → feed `video` column should populate for the personalized ad and `playback` rows appear next to `gaze`. Also corrects the "LIVE E2E PASSED" entry below: the ad *delivery* passed, but observability was silently broken — this restores it.
+
+## 2026-06-19 — Temporal orchestration LIVE E2E PASSED (walk-up, 4 displays)
+**What ran:** full stack via `mras-ops/start-mras.sh` (Docker rebuild + native vision) + kiosk (`mras-display` `npm run electron:dev`, 4 windows). Owner walked up to the camera as the enrolled identity.
+**Verified end-to-end (composer + vision logs + visual):**
+- vision `PresenceReporter` → composer `POST /presence 200 OK` streaming continuously (PR #20 path live).
+- identification → composer `POST /trigger 200 OK` → orchestrated render: kiosks fetched `GET /media/orch-<uuid>-1-0.mp4` AND `orch-<uuid>-1-1.mp4` — the **`orch-` prefix proves the orchestrator (not the old one-shot fan-out) produced the clips**, two distinct variants = the A/B split.
+- name overlay rendered: `POST http://mras-overlays:3000/render 200 OK`.
+- **Visual: name opener on all 4 windows → then paired down to 2** = opener-on-all-owned-displays → round-2 A/A/B/B split, exactly the designed 2-round program. Kiosks `connection closed` ×4 then resumed presence = clean return to idle.
+- No crashes, no black windows, vision stayed up throughout.
+**Non-blocking findings (NOT orchestration bugs):**
+- ElevenLabs returned `402 Payment Required` (account out of credits) → **Gemini TTS fallback fired `200 OK`** as designed; name still spoken. Top up ElevenLabs before a paid demo, but fallback covers it.
+- vision-side `portable_clearcut_uploader.cc FAILED_PRECONDITION` = MediaPipe/Google telemetry noise, harmless.
+**State:** temporal orchestration (composer #24 `2bdb60a` / display #12 `19561a3` / vision #20 `b225f31`) is **live-verified**. The owner-pending E2E is now DONE — orchestration feature complete. `DisplayAssigner` remains intentionally kept (orphaned). Next: TODO-5 (ffmpeg software-latency benchmark).
+
+## 2026-06-19 — Temporal orchestration CODE merged → ACTIVATED on main (3 repos)
+**Changes:** merged the three interdependent temporal-orchestration CODE PRs (each base `main`, true `--merge`, remote branch deleted, local `main` fast-forwarded == origin/main):
+- `mras-composer` PR #24 → `main`@`2bdb60a` — `Orchestrator` core + runtime/watchdog + **activated** `/trigger`→`on_identify` (the one-shot fan-out path is no longer the live path).
+- `mras-display` PR #12 → `main`@`19561a3` — kiosk emits `clip_ended` and waits for composer to decide next; `{type:idle}` resumes idle shuffle.
+- `mras-vision` PR #20 → `main`@`b225f31` — `PresenceReporter` posts identified live tracks per `screen_id` to composer `/presence`.
+**Owner decisions this session:** (1) merge all 3 together — done. (2) **KEEP** `mras-composer/src/display_assignment.py` (`DisplayAssigner`) + its tests despite being orphaned post-activation (no production caller) — left intact intentionally, NOT dead-code-deleted; revisit only if a one-shot fallback is ever wanted again.
+**State / pending:** Orchestration is live on all three `main` branches but **NOT yet E2E-verified** — the live walk-up / multi-camera / kiosk run (composer orchestrated `/trigger` ↔ vision `/presence` ↔ kiosk `clip_ended`) needs owner camera + display hardware and has NOT been run. Pre-merge: all three were unit-green (composer 134, vision 111, display 47 + tsc clean). vision #20 mergeable resolved UNKNOWN→CLEAN before merge.
+
 ## 2026-06-19 — Planning docs merged to main (specs/plans now discoverable)
 **Changes:** merged the three DOCS-ONLY planning PRs in `minority_report_architecture`: #14 serialized-inference (`cf85e0f`), #13 adaptive-enrollment (`0b02466`), #12 temporal-orchestration (`e3a14f6`). `main`@`e3a14f6`.
 **Why this mattered:** the spec/plan markdown previously lived ONLY on unmerged `chore/*-spec` branches, so agents working from a clean `main` (and `GODVIEW_HANDOFF.md`'s references) could NOT find them — Agent D building #12 hit exactly this and worked from its task brief instead. Now all 6 specs + 8 plans are on `main` under `docs/superpowers/specs/` and `/plans/`.
