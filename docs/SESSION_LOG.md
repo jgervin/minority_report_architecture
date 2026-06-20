@@ -123,6 +123,19 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-19 — Temporal orchestration LIVE E2E PASSED (walk-up, 4 displays)
+**What ran:** full stack via `mras-ops/start-mras.sh` (Docker rebuild + native vision) + kiosk (`mras-display` `npm run electron:dev`, 4 windows). Owner walked up to the camera as the enrolled identity.
+**Verified end-to-end (composer + vision logs + visual):**
+- vision `PresenceReporter` → composer `POST /presence 200 OK` streaming continuously (PR #20 path live).
+- identification → composer `POST /trigger 200 OK` → orchestrated render: kiosks fetched `GET /media/orch-<uuid>-1-0.mp4` AND `orch-<uuid>-1-1.mp4` — the **`orch-` prefix proves the orchestrator (not the old one-shot fan-out) produced the clips**, two distinct variants = the A/B split.
+- name overlay rendered: `POST http://mras-overlays:3000/render 200 OK`.
+- **Visual: name opener on all 4 windows → then paired down to 2** = opener-on-all-owned-displays → round-2 A/A/B/B split, exactly the designed 2-round program. Kiosks `connection closed` ×4 then resumed presence = clean return to idle.
+- No crashes, no black windows, vision stayed up throughout.
+**Non-blocking findings (NOT orchestration bugs):**
+- ElevenLabs returned `402 Payment Required` (account out of credits) → **Gemini TTS fallback fired `200 OK`** as designed; name still spoken. Top up ElevenLabs before a paid demo, but fallback covers it.
+- vision-side `portable_clearcut_uploader.cc FAILED_PRECONDITION` = MediaPipe/Google telemetry noise, harmless.
+**State:** temporal orchestration (composer #24 `2bdb60a` / display #12 `19561a3` / vision #20 `b225f31`) is **live-verified**. The owner-pending E2E is now DONE — orchestration feature complete. `DisplayAssigner` remains intentionally kept (orphaned). Next: TODO-5 (ffmpeg software-latency benchmark).
+
 ## 2026-06-19 — Temporal orchestration CODE merged → ACTIVATED on main (3 repos)
 **Changes:** merged the three interdependent temporal-orchestration CODE PRs (each base `main`, true `--merge`, remote branch deleted, local `main` fast-forwarded == origin/main):
 - `mras-composer` PR #24 → `main`@`2bdb60a` — `Orchestrator` core + runtime/watchdog + **activated** `/trigger`→`on_identify` (the one-shot fan-out path is no longer the live path).
