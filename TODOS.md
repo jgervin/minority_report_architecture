@@ -197,3 +197,27 @@ Cross-camera person correlation reuses ArcFace embeddings.
 **Effort:** L (human) → M (CC+gstack)
 **Priority:** P2 — explicitly sequenced AFTER a production-level test of perception part 1
 **Depends on:** Phase 2 perception part 1; production parallel composition (scale plan)
+
+---
+
+## TODO-9: Double-Name — suppress always-on overlay when the component renders the name (Phase 0.5)
+
+**What:** When an ad is bound to a name-rendering custom Remotion component (e.g. `helloname`,
+`hellonamepw`), do NOT also composite the always-on animated name overlay — pick one source.
+
+**Why:** `mras-composer/main.py:_render_overlay_inserts` adds the bound custom component AND, then,
+the always-on name overlay "custom-Remotion component or not". Ads whose component already renders
+the name (`nike-hello`, `pw-hello-jordan`) show the viewer's name TWICE on screen; ads with
+non-name components (`lightleak`, `fallingsnow`) show it once. Owner-reported live (2026-06-20).
+Pre-existing collision of the "name ALWAYS written" owner rule (2026-06-12) with name-rendering
+components — not caused by temporal orchestration.
+
+**Where to start:** In `_render_overlay_inserts`, skip the always-on name overlay branch when the
+selection personalizes via its component — i.e. `selection.composition_id` is set AND the ad has a
+`personalized_field` (the `ads` table column that signals the component renders the name). Treat the
+overlay as the fallback for base-video-only ads. TDD: a personalized-via-component selection yields
+exactly one name source; a base-video-only personalized selection still gets the overlay.
+
+**Effort:** S (human) → S (CC+gstack)
+**Priority:** P2 — content/visual polish; owner deferred on 2026-06-20 ("leave it for now")
+**Depends on:** None

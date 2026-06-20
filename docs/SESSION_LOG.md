@@ -67,6 +67,13 @@ Below threshold → `is_new_visitor=true` → standard ad (no name). Enrolled id
 collection `mras_embeddings` (512-dim Cosine). Live recognition is marginal — re-enroll under demo
 lighting for reliability (pending).
 
+**Re-engagement cooldown:** vision claims a per-`screen_id:uuid` cooldown before each `/trigger`
+(`src/identity/cooldown.py`, default `COOLDOWN_SECS=30`). This is the gap before the SAME person is
+served again — each `/trigger` starts a fresh orchestrator program (opener→round2→done), so a short
+cooldown replays the whole program (at 30s a standing viewer re-triggered every 30s = repeating 4→2
+rounds). **Overridden to `COOLDOWN_SECS=120` in `mras-vision/.env` (2026-06-20)** for demo pacing
+(one program, then ~2 min idle for that person). Tune via that env var; restart vision to load it.
+
 **Perception CPU throttle (2026-06-17):** DeepFace-emotion + YOLO are throttled to ~1 Hz via
 `PERCEPTION_ANALYZER_INTERVAL_S` (default 1.0s, set in `build_analyzers()`). Without it they ran
 ~6x/sec (capture loop awaits `process_frame`), pegging a GPU-less Mac and causing track churn. Identity
@@ -122,6 +129,27 @@ with open("alice.jpg","rb") as f:
 ---
 
 ## Session Entries (newest first)
+
+## 2026-06-20 — Live E2E #2: playback fix verified; round-repeat diagnosed (cooldown); double-name logged
+**Verified:** mras-composer #25 (merged `946cbb8`) confirmed live — the Activity Feed now shows
+`mras-composer / playback / dispatched` rows with ▶ play links for the personalized orchestrated ads.
+**Round-repeat (owner-reported "3× 4-then-2 rounds in <60s"):** NOT a code bug. Vision's per-`screen_id:uuid`
+cooldown (`src/identity/cooldown.py`, `COOLDOWN_SECS` default 30) was un-overridden → vision re-fired
+`/trigger` every 30s (composer feed showed `composition/orchestrated` rows exactly 30s apart, 12:01:31 /
+12:02:01). Each `/trigger` → `Orchestrator.on_identify` → the prior program had already reached `Round.DONE`
+(opener+round2 finishes <30s) → a fresh program starts from the opener. So a standing viewer replays the
+whole 2-round program every cooldown. **Fix = config:** set `COOLDOWN_SECS=120` in `mras-vision/.env`
+(working-tree, gitignored; restart vision). No orchestrator change. `on_identify` already no-ops a repeat
+identify *mid*-program (only `None`/`DONE` programs restart) — the gap is purely the cooldown length.
+**Double-name (owner-reported "Jason shown twice on some ads") — KNOWN ISSUE, deferred (owner said leave it):**
+`main.py:_render_overlay_inserts` composites the bound custom Remotion component (which itself renders the
+name, e.g. `helloname`/`hellonamepw`) AND then unconditionally adds the always-on animated name overlay
+(docstring: "custom-Remotion component or not"). Ads bound to a name-rendering component (`nike-hello`,
+`pw-hello-jordan`) thus show the name twice; non-name components (`lightleak`, `fallingsnow`) show it once.
+Pre-existing collision of the "name ALWAYS written" owner rule with name-rendering components — NOT caused by
+orchestration. Logged as TODO-9 (suppress the overlay when the ad personalizes via its component).
+**State:** cooldown override live (pending vision restart + a re-walk to confirm one program then ~2 min gap).
+Double-name deferred per owner.
 
 ## 2026-06-19 — Orchestration regression found via live E2E: playback events dropped → fixed (PR #25)
 **How it surfaced:** owner noticed the Activity Feed (`localhost:3000` → "Activity Feed" tab) `video` column was empty even though personalized clips played. Verified live with Playwright: the page renders fine; the events ARE in Postgres (2197 rows; this walk-up wrote 196 `detection` + 65 `gaze` + 2 `composition/orchestrated`). The empty column was the symptom of a real regression, not a display bug.
