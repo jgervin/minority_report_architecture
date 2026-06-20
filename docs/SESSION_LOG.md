@@ -123,6 +123,14 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-19 — Temporal orchestration CODE merged → ACTIVATED on main (3 repos)
+**Changes:** merged the three interdependent temporal-orchestration CODE PRs (each base `main`, true `--merge`, remote branch deleted, local `main` fast-forwarded == origin/main):
+- `mras-composer` PR #24 → `main`@`2bdb60a` — `Orchestrator` core + runtime/watchdog + **activated** `/trigger`→`on_identify` (the one-shot fan-out path is no longer the live path).
+- `mras-display` PR #12 → `main`@`19561a3` — kiosk emits `clip_ended` and waits for composer to decide next; `{type:idle}` resumes idle shuffle.
+- `mras-vision` PR #20 → `main`@`b225f31` — `PresenceReporter` posts identified live tracks per `screen_id` to composer `/presence`.
+**Owner decisions this session:** (1) merge all 3 together — done. (2) **KEEP** `mras-composer/src/display_assignment.py` (`DisplayAssigner`) + its tests despite being orphaned post-activation (no production caller) — left intact intentionally, NOT dead-code-deleted; revisit only if a one-shot fallback is ever wanted again.
+**State / pending:** Orchestration is live on all three `main` branches but **NOT yet E2E-verified** — the live walk-up / multi-camera / kiosk run (composer orchestrated `/trigger` ↔ vision `/presence` ↔ kiosk `clip_ended`) needs owner camera + display hardware and has NOT been run. Pre-merge: all three were unit-green (composer 134, vision 111, display 47 + tsc clean). vision #20 mergeable resolved UNKNOWN→CLEAN before merge.
+
 ## 2026-06-19 — Planning docs merged to main (specs/plans now discoverable)
 **Changes:** merged the three DOCS-ONLY planning PRs in `minority_report_architecture`: #14 serialized-inference (`cf85e0f`), #13 adaptive-enrollment (`0b02466`), #12 temporal-orchestration (`e3a14f6`). `main`@`e3a14f6`.
 **Why this mattered:** the spec/plan markdown previously lived ONLY on unmerged `chore/*-spec` branches, so agents working from a clean `main` (and `GODVIEW_HANDOFF.md`'s references) could NOT find them — Agent D building #12 hit exactly this and worked from its task brief instead. Now all 6 specs + 8 plans are on `main` under `docs/superpowers/specs/` and `/plans/`.
