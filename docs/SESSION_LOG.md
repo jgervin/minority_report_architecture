@@ -130,6 +130,33 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-21 — Architecture docs refreshed to current state (handoff for architect + PM) → PR #18
+**Why:** `adface_architecture.md` was last accurate 2026-06-07 — it predated ~6 shipped features (Phase 2
+perception, temporal orchestration, adaptive enrollment, serialized inference, the `mras-overlays`
+sidecar, M4 authoring) and still said MisoOne TTS / `scene_context={}` / Qdrant-gap-open. Owner needs a
+current handoff for an external systems architect + Director of PM.
+**Method:** dispatched a verification agent to read code across all 5 repos and produce a current-state
+fact sheet (services/ports/endpoints/outbound calls, DB schema, emitted `events` (type,status) pairs,
+per-feature BUILT/PARTIAL/NOT-BUILT, TTS chain, env tunables, + 7 cross-repo drift flags). Wrote both
+docs from that fact sheet + the existing doc. Mermaid current-state diagram validated (`valid:true`).
+**Changes (`minority_report_architecture` PR #18, branch `docs/architecture-refresh-2026-06`, base main,
+OPEN; commit `1ce4d7d`, docs-only):**
+- NEW `docs/SYSTEM_OVERVIEW.md` — layered handoff: Part 1 product/exec summary (capabilities table,
+  walk-up narrative, working-vs-pending, roadmap), Part 2 technical (5 services + ports/run model,
+  data-flow diagram, per-service detail, DB schema, `events` catalog, tunables, known-drift section).
+- REFRESHED `adface_architecture.md` — added status banner, BUILT/PARTIAL/PLANNED legend, a delta table,
+  a new as-built current-state Mermaid diagram, relabeled the original as "Full/Target", and inline
+  `(2026-06-21 update)` annotations on D4 (TTS→Gemini), D6 (Redis cooldown/120s), D9 (`scene_context`
+  populated but unconsumed → TODO-7), D12 (threshold 0.67), D17 (remote config NOT wired), + the now-CLOSED
+  Qdrant failure mode. God View marked PARTIAL (feed + authoring only).
+**Owner constraint honored:** nothing unbuilt was removed — full God View, GenAI video (P2-C4),
+demographic tier, Brand Dashboard (P4), multi-camera/-location, remote runtime config (D17) all preserved
+and marked PLANNED.
+**Notable drift the verification surfaced (now documented):** `REMOTE_CONFIG_URL`/D17 is dead (no reader,
+no ops-api route); `mras-composer/.env.example` is stale (lists MisoOne/HF, omits the Gemini/overlay vars
+the app uses); God View frontend is just 2 tabs. **State:** PR #18 open, not merged. These docs are a
+point-in-time snapshot — SESSION_LOG remains the living source of truth.
+
 ## 2026-06-20 — Live E2E #2: playback fix verified; round-repeat diagnosed (cooldown); double-name logged
 **Verified:** mras-composer #25 (merged `946cbb8`) confirmed live — the Activity Feed now shows
 `mras-composer / playback / dispatched` rows with ▶ play links for the personalized orchestrated ads.

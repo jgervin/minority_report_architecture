@@ -1,6 +1,105 @@
 # AdFace — System Architecture Diagram
 
-## Full System Architecture
+> **Status:** refreshed 2026-06-21, verified against live code in all 5 repos. The diagrams and
+> decision tables below were originally drawn 2026-06-05/07; this header reconciles them with what is
+> actually built. For a layered product+technical handoff (exec/PM summary on top), read the companion
+> `/Users/jn/code/minority_report_architecture/docs/SYSTEM_OVERVIEW.md` first. For the running journal,
+> see `/Users/jn/code/minority_report_architecture/docs/SESSION_LOG.md`.
+>
+> **Build-state legend:** ✅ BUILT (on `main`, tested) · 🟡 PARTIAL · ⬜ PLANNED (designed/scoped, not
+> built — preserved here so it stays on the roadmap).
+>
+> **What was built since this doc was first drawn (delta — none of the planned items below were removed):**
+> | Capability | State | Notes |
+> |---|---|---|
+> | Phase 0 personalization loop | ✅ BUILT | recognize → TTS → ffmpeg → kiosk playback |
+> | Phase 0.5 on-screen name overlays | ✅ BUILT | new **`mras-overlays`** Remotion render sidecar |
+> | Custom component / ad authoring (M4) | ✅ BUILT | `components`+`ads` tables; ops-api `/components`,`/ads`; sidecar `/render` |
+> | Phase 1 venue readiness | ✅ BUILT | Redis cooldown (in-mem fallback), burst `asyncio.Queue`, kiosk watchdog, multi-display |
+> | **Temporal display orchestration** | ✅ BUILT | composer `Orchestrator` + `/presence` + kiosk `clip_ended`; 2-round opener→A/B program |
+> | Phase 2 perception part 1 | ✅ BUILT | objects/colors, mood, attention, `gaze` events, `/debug/live` — **signals captured, not yet consumed (TODO-7)** |
+> | Adaptive enrollment | ✅ BUILT | multi-embedding gallery (`identity_embeddings`), gated reversible auto-augmentation |
+> | Serialized inference worker | ✅ BUILT | single `max_workers=1` inference path (fixes a native concurrency crash) |
+> | God View (P3) | 🟡 PARTIAL | only **Activity Feed + Authoring** tabs exist; the Phase-1 scope below is otherwise ⬜ PLANNED |
+> | Demographic tier, GenAI video (P2-C4), Brand dashboard (P4), multi-camera/-location | ⬜ PLANNED | unchanged from original scope |
+>
+> **Drift to know (design vs. code, 2026-06-21):** TTS backup is now **Google Gemini**, not MisoOne
+> (D4); the **per-screen cooldown is Redis-backed** and overridden to 120s on the demo rig (D6); the
+> **Remote Config Service (D17) is NOT wired** — `REMOTE_CONFIG_URL` is dead and ops-api has no
+> `/config/v1/runtime` route; `scene_context` is **populated** now, not `{}` (D9); confidence threshold
+> runs at **0.67** on the rig (D12); the **Qdrant-down critical gap is CLOSED** (handled + tested, see
+> Failure Modes). These are annotated inline below.
+
+## Current-State Architecture (✅ as-built, 2026-06-21)
+
+> The full/target architecture diagram (including planned + deferred components) follows in the next
+> section. This one shows only what is built and running today.
+
+```mermaid
+flowchart TD
+    CAM["📷 Camera (single, USB/built-in)"]
+
+    subgraph VIS["mras-vision · P1 (native, :8001)"]
+        V1["Capture + DeepFace/ArcFace (MPS)"]
+        V2["Identity resolve · multi-embedding gallery\nQdrant mras_embeddings · threshold 0.67"]
+        V3["Perception ~1Hz · objects/colors · mood · attention"]
+        V4["Dispatch queue + per-screen cooldown (Redis)"]
+        V5["Adaptive auto-augment (gated, reversible)"]
+    end
+
+    subgraph COMP["mras-composer · P2 (:8002)"]
+        C1["3-tier select (Personalized→Standard)"]
+        C2["Orchestrator (2-round program) + watchdog"]
+        C3["TTS: ElevenLabs → Gemini → silent"]
+        C4["ffmpeg assemble (software libx264)"]
+    end
+
+    OVL["mras-overlays · Remotion sidecar (:3000 internal)\nPOST /render name overlay + custom components"]
+    KIOSK["mras-display · Electron kiosk\nN windows /ws?screen_id · clip_ended"]
+
+    subgraph OPS["mras-ops · God View (PARTIAL)"]
+        API["api :8080 · /events/stream (SSE) · /ads · /components"]
+        FE["frontend :3000 · Activity Feed + Authoring only"]
+    end
+
+    PG[("PostgreSQL\nidentities · identity_embeddings · events · ads · components · campaigns")]
+    QD[("Qdrant\nmras_embeddings")]
+    RD[("Redis\ncooldown TTL keys")]
+
+    CAM --> V1 --> V2 --> V4
+    V2 --> V3
+    V2 --> V5
+    V4 -->|"POST /presence"| C2
+    V4 -->|"POST /trigger (scene_context populated)"| C1
+    C1 --> C2 --> C4
+    C2 -->|"POST /render"| OVL
+    C2 --> C3 --> C4
+    C4 -->|"WS play"| KIOSK
+    KIOSK -->|"WS clip_ended"| C2
+    V2 --> QD
+    V4 --> RD
+    V2 --> PG
+    C2 --> PG
+    PG --> API --> FE
+
+    classDef p1 fill:#1e3a5f,stroke:#4a90d9,color:#e8f4fd
+    classDef p2 fill:#1e3d2f,stroke:#4caf7d,color:#e8f5ee
+    classDef p3 fill:#3d2a1e,stroke:#d97b4a,color:#fdf0e8
+    classDef st fill:#2a1e3d,stroke:#9b59b6,color:#f5e8fd
+    class V1,V2,V3,V4,V5 p1
+    class C1,C2,C3,C4 p2
+    class API,FE p3
+    class PG,QD,RD st
+```
+
+---
+
+## Full / Target System Architecture (includes ⬜ planned + deferred)
+
+> Unchanged target-state diagram. It intentionally still shows **planned** components — demographic
+> inference (P1C5), GenAI video (P2C4), the full God View (P3), and the deferred Brand Dashboard (P4) —
+> none of which are built yet. Treat dashed/Phase-2/P4 nodes as ⬜ PLANNED. See the current-state diagram
+> above for what exists today.
 
 ```mermaid
 flowchart TD
@@ -184,12 +283,12 @@ Key decisions locked during the plan-ceo-review. Do not re-litigate these withou
 | D1 | No event bus (Redis/NATS). Direct HTTP P1→P2. | Learning project; separate FastAPI processes already isolate event loops. Queue added in Phase 1 if burst handling needed. |
 | D2 | Name stored in PostgreSQL `identities` table (UUID → name, embedding_status). Qdrant stores embeddings + UUIDs only. | PII belongs in a relational store with RBAC; vector DB is for similarity search only. |
 | D3 | Enrollment Phase 0: CSV import via `POST /enroll` (`CSVEnrollmentSource`). Phase 1: `ReverseImageSearchGateway` stub (Google, Lenso.ai, PimEyes, EyeMatch.ai). | AbstractEnrollmentSource interface; stub raises `NotImplementedError` until Phase 1. |
-| D4 | TTS Gateway: ElevenLabs (primary) → MisoOne (backup, build now) → HuggingFace (stub). Disk cache per UUID. | Single provider is a SPOF; fallback chain + cache survives API outages. |
+| D4 | TTS Gateway: ElevenLabs (primary) → MisoOne (backup, build now) → HuggingFace (stub). Disk cache per UUID. **(2026-06-21 update — AS BUILT: disk cache → ElevenLabs (`eleven_turbo_v2`) → Google Gemini (`gemini-2.5-flash-preview-tts`) → silent. MisoOne and HuggingFace were never built; Gemini is the live fallback. `mras-composer/.env.example` is stale.)** | Single provider is a SPOF; fallback chain + cache survives API outages. |
 | D5 | 3-tier always-on display: Standard (always) → Demographic (Phase 2, LocateAnything) → Personalized (named). Current ad keeps playing while personalized version assembles. | Display is never dark; personalized path hides assembly latency behind running content. |
-| D6 | Per-screen dedup: 1 ad per UUID per screen, then a cooldown hold (`MAX_ADS_BEFORE_COOLDOWN`=1, `COOLDOWN_SECS`=30, both env-configurable). Keyed `screen_id:uuid`. In-memory Phase 0; Redis Phase 1. | Prevents back-to-back duplicate generation for someone standing in frame; cooldown is per-screen so the same person can trigger on a second screen independently. |
+| D6 | Per-screen dedup: 1 ad per UUID per screen, then a cooldown hold (`MAX_ADS_BEFORE_COOLDOWN`=1, `COOLDOWN_SECS`=30, both env-configurable). Keyed `screen_id:uuid`. In-memory Phase 0; Redis Phase 1. **(2026-06-21 update — AS BUILT: ✅ Redis-backed (atomic claim) with in-memory fallback; lives in mras-vision. `COOLDOWN_SECS` overridden to **120** on the demo rig — this is the re-engagement gap before the same person's orchestrated program replays; a too-short value made the 2-round program loop.)** | Prevents back-to-back duplicate generation for someone standing in frame; cooldown is per-screen so the same person can trigger on a second screen independently. |
 | D7 | Blocklist: P2 stops personalization (falls back to StandardAd). P1 still runs face detection and embedding for learning reps. | System gets training value; blocklisted person sees a standard ad, not a blank screen. |
 | D8 | ffmpeg runs in Docker with software encoding (no VideoToolbox — macOS-only, unavailable in containers). Validate <3s empirically before building P2. See TODOS.md TODO-5. | Docker Compose uniformity for dev; M3 software encoding is fast enough for Phase 0 short clips. |
-| D9 | `trigger_id` (uuid4) propagated across all services for correlation. `scene_context` field always present in P1→P2 payload; Phase 0 value is `{}`. | Observability — every log line traceable to originating detection. Scene context is Phase 2 (LocateAnything). |
+| D9 | `trigger_id` (uuid4) propagated across all services for correlation. `scene_context` field always present in P1→P2 payload; Phase 0 value is `{}`. **(2026-06-21 update — `scene_context` is now POPULATED by Phase 2 perception: `objects[]` (label/confidence/color/bbox), and `viewer{mood, attending}` after dwell. But nothing in composer CONSUMES it for ad selection yet — that is TODO-7.)** | Observability — every log line traceable to originating detection. Scene context is Phase 2 (LocateAnything). |
 | D10 | Background reconciliation task in P1-C4: every 60s, retry Qdrant writes for rows with `embedding_status='pending'` older than 5 minutes. | Prevents phantom enrollments from silent dual-write failures. |
 | D11 | Supabase Auth with JWT custom claims for RBAC. Canonical roles: `Operator.SystemAdmin`, `Operator.SeniorSystemAdmin` (Phase 0). Full role set in `mras_ecosystem_and_users.md`. | Cheap, already in stack; JWT claims avoid per-request DB lookups for role checks. |
 
@@ -206,11 +305,11 @@ Key decisions locked or updated during the plan-eng-review. Do not re-litigate t
 | D4 (update) | TTS disk cache key: `{uuid}_{voice_id}_{sha256(text_template)[:8]}`. If all TTS providers fail: assemble base video without audio overlay, fall back to StandardAd path, log `TTS_UNAVAILABLE` event to PostgreSQL. Never crash P2 on TTS failure. TTS pre-warm at startup is **permanently deferred** — at scale (10K enrolled × 100 campaigns = 1M API calls), startup pre-warming is impractical; cache warms organically per trigger. | UUID-only cache key serves stale audio when voice or template changes. Compound key eliminates that class of bugs. Bottom-of-chain fallback must be explicit. Pre-warm is economically unviable at target enrollment scale. |
 | D5 (update) | **Walk-away policy (Phase 0):** play assembled ad even if person has left frame. **WebSocket reconnect:** P2-C5 reconnects with exponential backoff (1s→30s cap); if all reconnects fail, loop a local disaster fallback video file stored on the Electron host machine (path configured at deploy time, no network dependency). **Display-tier interrupt:** when personalized assembly completes, backend sends `interrupt` signal via WebSocket; P2-C5 fades out current ad in 500ms and plays personalized immediately. | Walk-away: simplicity wins for demo scale. Reconnect: 'always-on' requires explicit reconnect logic; local fallback ensures no dark screen. Interrupt: waiting for slot boundary could add up to 30s of delay — defeats the purpose of personalization. |
 | D8 (update) | ffmpeg subprocess constraints: **max 1 concurrent ffmpeg per screen** (`asyncio.Semaphore(1)`), **10s subprocess timeout** (kill on timeout), **temp files cleaned up on success and failure**. Recommended flags: `-c:v libx264 -preset fast -c:a aac`. | Without a concurrency limit, simultaneous detections launch parallel ffmpeg processes that compete for CPU and may both exceed the latency budget. Timeout prevents hung ffmpeg from blocking the pipeline indefinitely. |
-| D12 | **Identity confidence threshold ≥ 0.68** (ArcFace cosine similarity). Below threshold: `is_new_visitor=True`, falls back to demographic or standard ad. Threshold is a **remotely configurable parameter** (see D17). | Threshold must be explicit in architecture, not left to implementer discretion. 0.68 is the ArcFace-published 'confident match' baseline. Remotely tunable so false positive rate can be adjusted without per-host reconfiguration. |
+| D12 | **Identity confidence threshold ≥ 0.68** (ArcFace cosine similarity). Below threshold: `is_new_visitor=True`, falls back to demographic or standard ad. Threshold is a **remotely configurable parameter** (see D17). **(2026-06-21 update — code default still 0.68; demo rig overrides to **0.67** in `mras-vision/.env` because live scores cluster ~0.679. Recognition is marginal under demo lighting; durable fix is re-enrollment + the multi-embedding gallery. Set via env, not the (unbuilt) remote-config channel.)** | Threshold must be explicit in architecture, not left to implementer discretion. 0.68 is the ArcFace-published 'confident match' baseline. Remotely tunable so false positive rate can be adjusted without per-host reconfiguration. |
 | D13 | **DeepFace model pre-warmed at P1 service startup.** P1-C2 calls `DeepFace.represent()` with a dummy blank frame during startup, before the camera capture loop begins. | DeepFace lazy-loads model weights on first call (5-10s cold start). Without pre-warming, the first live detection triggers the freeze — unacceptable when the first impression is the demo. |
 | D15 | **Frame sampling rate:** every 5th frame by default (6fps effective at 30fps camera). Configured via `FRAME_SAMPLE_RATE` env var. Must not exceed DeepFace processing throughput (~6-10fps on M3 MPS). | Processing every frame overwhelms DeepFace; the queue grows unbounded. At 6fps, DeepFace has 166ms per frame at comfortable margin. 1fps means up to 1s detection latency before a face is first seen. |
 | D16 | **DeepFace backend:** MPS on M3 (dev/demo), CUDA on AWS GPU (Phase 1). Configured via `DEEPFACE_BACKEND` env var (values: `mps`, `cuda`, `cpu`). Default CPU is unacceptable for the latency budget. | MPS on M3 delivers ~150-200ms per embedding vs ~600-800ms on CPU. That difference alone can breach the 5s latency budget before any other component is counted. Cloud deployment switches to CUDA without code changes. |
-| D17 | **Remote Config Service.** P3 exposes a `/config/v1/runtime` endpoint (backed by PostgreSQL). On-site systems poll every 20 minutes OR receive config pushes via the existing WebSocket channel. Applies to: `CONFIDENCE_THRESHOLD`, `FRAME_SAMPLE_RATE`, `DEDUP_COOLDOWN_SECONDS`, and all other tunable runtime parameters. No per-host manual reconfiguration required. | Runtime parameters must be centrally manageable across all deployed hosts. Polling at 20 min is low overhead. WebSocket push preferred where the connection is already live. |
+| D17 | **Remote Config Service.** P3 exposes a `/config/v1/runtime` endpoint (backed by PostgreSQL). On-site systems poll every 20 minutes OR receive config pushes via the existing WebSocket channel. Applies to: `CONFIDENCE_THRESHOLD`, `FRAME_SAMPLE_RATE`, `DEDUP_COOLDOWN_SECONDS`, and all other tunable runtime parameters. No per-host manual reconfiguration required. **(2026-06-21 status — ⬜ NOT BUILT/NOT WIRED: vision's `.env` sets `REMOTE_CONFIG_URL=http://localhost:8080/config/v1/runtime` but NO code reads it and ops-api has NO `/config` route. Tunables are set via per-process env vars today. This remains PLANNED.)** | Runtime parameters must be centrally manageable across all deployed hosts. Polling at 20 min is low overhead. WebSocket push preferred where the connection is already live. |
 | D18 | **P2 owns blocklist enforcement.** P2-C1 queries PostgreSQL on every trigger to determine blocklist status. P1 does not carry blocklist state in the trigger payload. P1 continues face detection and embedding for all detections regardless of blocklist status. | P1 focuses on identity resolution. Blocklist is an ad delivery policy that belongs in P2. P2 already queries PG for campaign selection; the blocklist check is one additional indexed lookup. |
 | D19 | **Phase 0 event log = one generic `events` table:** `id bigserial, trigger_id uuid, ts timestamptz, service text, event_type text, status text, payload jsonb, asset_ref text null`. Indexed `(ts DESC)` and `(trigger_id)`. P1/P2/kiosk write rows; P3-C1 minimal feed reads them. Phase 0 emits `detection`, `tts_attempt`, `playback`; the deferred Phase 1 God View reads the **same** table with more `event_type`s. | One forward-compatible event sink avoids parallel per-phase tables (DRY) and lets the full God View land in Phase 1 with **zero schema migration or backfill**. `trigger_id` ties every event back to its originating detection (D9). `payload` JSONB absorbs type-specific fields without per-type columns. |
 
@@ -285,17 +384,28 @@ All Phase 0 components use pre-existing tools — nothing built from scratch:
 | All TTS providers fail | EL + MisoOne + HuggingFace all down | YES (full fallback chain test) | YES (base video served, TTS_UNAVAILABLE logged) | Standard ad plays; no name call-out |
 | ffmpeg subprocess hangs | Subprocess exceeds 10s | YES (timeout test) | YES (kill + temp cleanup) | Ad not delivered; next trigger starts fresh |
 | WebSocket connection drops | Network blip during demo | YES (reconnect test) | YES (backoff + local fallback video) | Local fallback loops; invisible if reconnect < 30s |
-| Qdrant down during live detection | QdrantException on similarity query | **NO — critical gap** | **NO — unspecified** | P1 crash or infinite retry; detection halts |
+| Qdrant down during live detection | QdrantException on similarity query | **YES (2026-06-21 — CLOSED)** | **YES — try/except → `new_visitor=True`, log `QDRANT_UNAVAILABLE`, pipeline continues** | Standard ad plays; auto-recovers when Qdrant returns (TODO-6 done, `mras-vision`) |
 | Second concurrent ffmpeg blocked | Semaphore(1) queues second assembly | YES (Semaphore test) | YES (queued, not dropped) | Second ad delayed but assembled correctly |
 | Bad photo in enrollment CSV | No face detected in uploaded photo | YES (enrollment error test) | YES (error envelope returned) | Operator sees failed[] in API response |
 
-**Critical gap:** Qdrant down during live detection has no test AND no specified error handling. P1 needs explicit `try/except QdrantException → log + fallback to new_visitor=True` in the detection loop. Flag for Phase 0 implementation.
+**Critical gap (2026-06-21 — RESOLVED):** the Qdrant-down path now has explicit
+`try/except → log `QDRANT_UNAVAILABLE` + fallback to `new_visitor=True`` in `mras-vision`'s detection
+loop, with a regression test; verified live (errors handled with zero crashes, auto-recovered). See
+TODOS.md TODO-6 (done). No remaining critical gap in this table.
 
 ---
 
 ## P3 God View (mras-ops) — Phase 1 Scope (captured 2026-06-05, eng review)
 
 mras-ops is the platform operator's **primary administrative + observability surface** (`Surface.Administration` in `mras_ecosystem_and_users.md`). Phase 0 ships only **P3-C1 minimal activity feed** — the demo personalization loop (P1→P2→display) is sequenced first. Everything below is **Phase 1**, recorded now so it isn't a cold start.
+
+> **2026-06-21 current state — 🟡 PARTIAL.** `mras-ops/frontend` today has exactly **two tabs**:
+> **Activity Feed** (live SSE over the `events` table, with ▶ play links for dispatched clips) and
+> **Authoring** (upload a custom Remotion component, create/bind ads — the M4 capability, which exceeds
+> the original "P3-C1 minimal"). **All other rows in the table below are ⬜ PLANNED / not built.** The
+> dashboard's event→panel data mapping is detailed in `docs/GODVIEW_HANDOFF.md`. Note the per-`event_type`
+> values now actually emitted (build them against these): vision emits `detection`, `gaze`, `perception`,
+> `augment`, `dispatch`; composer emits `composition`, `tts_attempt`, `overlay`, `assembly`, `playback`.
 
 **Stack:** React + Vite + TypeScript + **shadcn/ui** (Tailwind). Reference UX in `/Users/jn/Documents/mras_example_god_view`: dark theme, left icon rail, multi-pane layouts (filter list │ metric cards │ detail table + time-series), an investigation-canvas activity feed, confidence callouts, critical/secondary badges, and a review/approval workflow with embedded video-frame thumbnails.
 
