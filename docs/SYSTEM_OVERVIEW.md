@@ -273,5 +273,3 @@ the next architect isn't misled:
 - **God View dashboard data mapping:** `docs/GODVIEW_HANDOFF.md`.
 - **Running engineering journal + how-to-run + gotchas:** `docs/SESSION_LOG.md` (newest entry first).
 - **Open/deferred work:** `TODOS.md`.
-</content>
-</invoke>
