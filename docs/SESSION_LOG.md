@@ -130,6 +130,50 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-06-30 — God View schema Lane A: BUILT, reviewed, PR #34 open
+**Changes:**
+- `mras-ops` (branch `feat/godview-schema-lane-a`, 11 commits `dc0672d`..`3c6f991`, **PR #34** → base `main`, OPEN, not merged): clean-slate Postgres rebuild. Deleted Phase-0 `001-003`; added migrations `010_enums` → `017_indexes` (~21 tables) + `tests/test_schema_godview.py` (13 schema-assertion tests). PR: https://github.com/jgervin/mras-ops/pull/34
+- `minority_report_architecture` (**working-tree only, uncommitted**): `docs/superpowers/specs/2026-06-30-godview-schema-lane-a-design.md`, `docs/superpowers/plans/2026-06-30-godview-schema-lane-a.md`, this SESSION_LOG entry. These docs need their own branch/PR (don't commit to `main`).
+
+**How it was built:** superpowers subagent-driven development — fresh implementer per task (010→017), per-task spec+quality review, then a whole-branch review on the most capable model. The final review caught two real gaps the per-task reviews missed (see Learnings); fixed in `3c6f991`; re-review = READY-TO-MERGE. All git via `git-flow-manager`.
+
+**Learnings / gotchas:**
+- **Schema tests must live at `mras-ops/tests/`** (not `api/tests/`) to inherit `asyncio_mode=auto` from `tests/pytest.ini`; the fixture builds a throwaway `mras_schema_test` DB on the live PG16 server, applies all `db/migrations/*.sql` in order, asserts, drops it — the real `mras` DB is untouched, so the suite is safe to run anytime.
+- **Deferred-FK pattern** keeps migrations applying in filename order: declare a plain `uuid`/`bigint` column now, add the FK via `ALTER TABLE ADD CONSTRAINT` after the target table exists (4 media_asset FKs resolved in 014; 2 event_id FKs in 016; model_run_id in 015). Editing already-committed migrations in place is fine pre-merge (clean-slate; the test rebuilds from scratch).
+- **Idempotency keys need `NOT NULL`**: a `UNIQUE(trigger_id)` on a *nullable* column does NOT enforce single-row idempotency — Postgres treats NULLs as distinct, so duplicate NULL-trigger rows slip through. Final review caught this; `ad_runs.trigger_id` + `playbacks.trigger_id` are now `NOT NULL`.
+- **`viewer_exposures` needs its own scope columns** (Decision 2 = scope on *every* summary table); the first plan draft missed it — added org/location/system/display + index. A per-task review won't catch a missing-but-spec'd column when no test exercises that table; the whole-branch review (with the spec's acceptance criteria in hand) did.
+- **`events.id` is `bigserial`** (the only non-uuid PK) — the projector cursor needs a monotonic integer.
+- **Test the enum contract as a full ordered list**, not a membership spot-check, for external-contract enums (`role_label` = Supabase JWT claims; `embedding_status` = reconciler states) — a typo'd value passes a `len==8`/`"x" in set` check.
+
+**State:** Lane A schema complete, 13 tests green (controller-verified on PG16), PR #34 awaiting review. **Pending:** (1) review+merge PR #34; (2) **post-merge operational step** — recreate the dev DB volume from the main mras-ops checkout (`docker compose down -v && docker compose up -d postgres`) so services see the new schema (can't run pre-merge — migrations are branch-only); (3) put the `minority_report_architecture` docs on a branch/PR; (4) next lanes — projector worker, service event-emission + scope stamping, God View UI + device-registration screen. Carried-forward concerns unchanged: accepted biometric-privacy legal risk (revisit pre-alpha) + blocklist circularity.
+
+## 2026-06-30 — God View domain model: engineering review (pre-spec, 11 decisions locked)
+**Changes:** working-tree only (no commits) —
+- `minority_report_architecture` (working tree): added `docs/god-view-domain-model-eng-review.md` — full `/plan-eng-review` output for the proposed 22-table God View SaaS data model (`docs/god-view-domain-model.md`). No code/schema changed; this is a pre-spec review.
+- Artifacts (not in repo): test plan + `tasks-eng-review-*.jsonl` (T1–T9) in `~/.gstack/projects/minority_report_architecture/`.
+
+**Decisions locked (full detail in the eng-review doc):**
+1. RBAC — honor D11: Supabase Auth + JWT claims + thin `user_org_scopes` map; **drop** relational `users/roles/permissions`.
+2. Event scope — first-class scope columns (`location_id/system_id/display_id/camera_id/...`) on `events` AND every summary table.
+3. Projector — one event-sourced "librarian" worker in `mras-ops` builds the mutable summary tables; services write only to `events`; live reads from `events`, history from summaries; idempotent via natural unique keys (`ad_run`/trigger_id, `playback`/(trigger,display)).
+4. Migration — **REVISED to clean-slate rebuild**: owner confirmed all data is disposable test data (~4 Qdrant faces, named: Jason, maybe Ragnar). Wipe `identities/identity_embeddings/events`+Qdrant; `subject_profiles` is the single keyspace; re-enroll. **Authorized only while pre-alpha.**
+5. PG↔Qdrant — extend the D10 reconciler (pending→active + orphan cleanup) to `subject_embeddings`.
+6. `campaigns` — confirmed dead (grep: only its own migration references it) → drop the Phase-0 shell, rebuild uuid-keyed.
+7. Blocklist test — full cross-repo E2E + unit (non-personalized output AND no identity leak).
+8. `events` growth — defer partitioning (TODO); cursor on PK; one events accessor.
+9. **Biometric privacy — owner ACCEPTED RISK: handle externally** (no consent/retention/deletion machinery built). Reviewer + adversarial subagent both flagged this as the largest legal exposure (BIPA/GDPR / non-consensual re-identification via `subject_profile_merges`). TODO: revisit with counsel before alpha.
+10. Device registry — God View setup/registration flow writes `locations/systems/cameras/displays`; device row holds runtime `screen_id` → uuid + human name; projector resolves string→uuid at stamp time. Admin device-registration screen required in V1.
+11. (withdrawn — keyspace split-brain dissolved by clean-slate.)
+12. Watch accuracy — propagate `trigger_id` end-to-end incl. idle path; target-watched exact via `trigger_id`; bystanders = `watch_probability`, never a boolean.
+
+**Learnings / gotchas:**
+- Current `events` (001_initial.sql) has **no scope columns** — everything rich is in `payload jsonb`; only `(ts DESC)`,`(trigger_id)` indexed. Multi-location God View needs scope as real columns.
+- `campaigns` table is dead code (no reader in any of the 5 repos).
+- The God View mission is fundamentally a *reader* of `events`; the demo-visible feature is unblocked by 3 new event emissions (`playback/started|ended`, composition lifecycle) + scope columns — full-V1 (22 tables) was the owner's deliberate choice over the reviewer's thin-cut recommendation.
+- Critical silent gap to close with the projector: **projector-lag** (summary tables go stale while `events` grows; UI looks healthy) → task T8 adds a lag indicator.
+
+**State:** Pre-spec review complete; no code touched. Owner chose to proceed to spec/plan. Implementation lanes: `mras-ops` schema/projector/UI first (Lane A), then `mras-display`/`mras-composer`/`mras-vision` in parallel. Two open concerns carried forward: accepted biometric-privacy legal risk (revisit pre-alpha) and the blocklist-circularity functional bug (needs a non-biometric suppression signal before `blocklist_entries` ships).
+
 ## 2026-06-21 — Architecture docs refreshed to current state (handoff for architect + PM) → PR #18
 **Why:** `adface_architecture.md` was last accurate 2026-06-07 — it predated ~6 shipped features (Phase 2
 perception, temporal orchestration, adaptive enrollment, serialized inference, the `mras-overlays`
