@@ -130,6 +130,24 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-01 — God View: schema+018 landed, dev DB live, service-compat verified, librarian designed, 2 bugs
+**Changes (all merged to `main` unless noted):**
+- `mras-ops`: **PR #34 MERGED** (schema, `fc018e8`); **PR #35 MERGED** — migration `018_projector_keys.sql` (`a8c313f`): natural UNIQUE keys + NOT NULL discriminators on the 5 projector-written summary tables (`observation_tracks`, `identity_matches`, `personalization_decisions`, `composition_runs`, `viewer_exposures`) so projector replay/rebuild is idempotent. 14 schema tests.
+- `mras-composer`: **PR #26 MERGED** (`a49bb50`) — mint a per-render `trigger_id` (uuid4) instead of the person uuid; threaded renderer→runtime→dispatch; 142 tests. Follow-up **issue #27** (orchestrator `_cache` never evicted → repeat-visit can replay a prior trigger_id).
+- `minority_report_architecture`: **PR #19 MERGED** (Lane A docs, `5986494`); **PR #20 MERGED** — `docs/godview-service-compatibility.md` + `docs/superpowers/specs/2026-07-01-librarian-projector-design.md` + this entry.
+- **Dev DB**: recreated clean-slate on the new schema (34 tables); `018` applied via `psql` (additive ALTERs on empty tables — no volume recreate). Compose **app services (composer/api/frontend/overlays) STOPPED** (they expect the old schema); `postgres`/`qdrant`/`redis` kept up.
+
+**Verification (CTO, static — nothing run):** 4 of 5 services need change before end-to-end works; only `mras-overlays` untouched. `mras-vision` BREAKS-hard, `mras-composer` BREAKS, `mras-ops` NEEDS-CHANGE (projector + device registry unbuilt), `mras-display` NEEDS-CHANGE (greenfield event emission). Full detail in `docs/godview-service-compatibility.md`.
+
+**Learnings / gotchas:**
+- The `events` reshape was **purely additive** (old `events.trigger_id` was already `uuid NOT NULL`, `id` already `bigserial`) → no service's `events` INSERT broke; the NOT-NULL-unique risk moved **downstream** to the projector tables (`ad_runs`/`playbacks`).
+- **augment is NOT a table rename**: the new schema keeps embedding vectors only in Qdrant (`subject_embeddings` has `qdrant_point_id`, no `embedding` column). Folded into the future vision reroute lane, not patched in isolation.
+- **`screen_id` is overloaded**: vision emits it as a camera id (`screen_0`); composer/display as a display id (`display-<n>`). The projector disambiguates by emitting service. Documented.
+- **Projector idempotency keys must use RAW event values** (event_id, trigger_id, the `screen_id` string) not resolved-scope uuids (which are null for unregistered devices) — hence `observation_tracks` got a raw `camera_screen_id` column.
+- **Nothing writes `subject_embeddings.qdrant_point_id` yet** → recognition on the new side matches no one until the vision reroute lane persists embeddings.
+
+**State:** Schema + 018 + composer trigger_id fix all landed; dev DB live on the new schema with app services parked. Librarian/projector is **designed (spec), not built** — the next build lane; it needs the event-emission lane to enrich event payloads first (all 10 summary tables currently lack a rich source event). Open lanes: (1) `mras-ops` projector worker + device registry/`screen_id`→uuid resolver; (2) `mras-vision` identities→subject reroute incl. augment + re-enroll writing `subject_embeddings`; (3) `mras-composer` blocklist→`blocklist_entries`; (4) `mras-display` event emission + `trigger_id`. **Deferred to go-live announcement:** biometric-privacy machinery, blocklist circularity. Follow-up: `mras-composer#27`.
+
 ## 2026-06-30 — God View schema Lane A: BUILT, reviewed, PR #34 open
 **Changes:**
 - `mras-ops` (branch `feat/godview-schema-lane-a`, 11 commits `dc0672d`..`3c6f991`, **PR #34** → base `main`, OPEN, not merged): clean-slate Postgres rebuild. Deleted Phase-0 `001-003`; added migrations `010_enums` → `017_indexes` (~21 tables) + `tests/test_schema_godview.py` (13 schema-assertion tests). PR: https://github.com/jgervin/mras-ops/pull/34
