@@ -1,7 +1,7 @@
 # Handoff — Session State (2026-07-03)
 
 > **For the next (Fable) session.** Written to be read cold. Companion doc:
-> `/Users/jn/code/minority_report_architecture/docs/handoff-peelback-orchestration-spec.md`
+> `/Users/jn/code/minority_report_architecture/docs/handoff-03-peelback-orchestration-spec.md`
 > (the feature to build next). Deep background lives in
 > `/Users/jn/code/minority_report_architecture/docs/SESSION_LOG.md` (2026-07-03 entry, on branch
 > `docs/session-log-godview-waves-2026-07-01` / arch PR #21 — not yet on `main`).
@@ -134,7 +134,7 @@ blocked in all 5 repos — delegate to the `git-flow-manager` subagent.
 ## Open items
 
 1. **Display peel-back orchestration** — the next task. See
-   `/Users/jn/code/minority_report_architecture/docs/handoff-peelback-orchestration-spec.md`.
+   `/Users/jn/code/minority_report_architecture/docs/handoff-03-peelback-orchestration-spec.md`.
 2. **DBA/architect review pass** on the 4 fixes, then **merge the God View stack** in the order above.
 3. **Cosmetic:** target `identity_status` shows `unmatched` because vision emits no `match_status`, so
    the observation defaults `no_match`. Emit `match_status='matched_known'` on a recognition.

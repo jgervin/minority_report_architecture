@@ -2,7 +2,7 @@
 
 > **For the next (Fable) session.** The task: make the composer's display orchestration play a
 > recognized person's ad on **all displays in their camera-area, then back off to half, then stop.**
-> Companion: `/Users/jn/code/minority_report_architecture/docs/handoff-2026-07-03-session-state.md`
+> Companion: `/Users/jn/code/minority_report_architecture/docs/handoff-02-session-state.md`
 > (what's committed, how to run the live E2E). This is a **composer-orchestrator** task, independent of
 > the now-validated God View data pipeline.
 
