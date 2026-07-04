@@ -130,6 +130,18 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-03 (c) — God View stack MERGED to main across all 5 repos; dev stack rebuilt from main
+**Changes:**
+- Merges (owner-authorized; child→parent→main with merge commits, bases verified per PR): `mras-ops` #38→`20f0bcb`, #37→`f400adb`, #36→main **`c017486`** (projector "librarian" + FK-link/viewer_exposures derivations + gaze join; migrations 019–024); `mras-vision` #22→`9def7dc`, #21→main **`8ab5701`** (identities→subject_profiles/Qdrant reroute + gaze join keys + match_status); `mras-composer` #28→main **`1aea5ae`** (event emission + subject_profiles selector with known/named guards); `mras-display` #13→main **`bc6c1e4`** (playback lifecycle echo); `minority_report_architecture` #21 `5d741ca`, #22 `b917387`, #23 `fe1e522` (SESSION_LOG, live-E2E runbook, handoff/peel-back spec). All remote + local branches deleted, all `.worktrees/` cleaned; every repo on a synced `main`.
+- Post-merge ops: deleted temp `/Users/jn/code/mras-ops/docker-compose.override.yml` (main compose now fully defines `mras-ops-projector` — PR #36 brought it); applied migration `024_target_attribution_idx.sql` to the running dev DB (`subject_observations_profile_system_observed_idx` + `subject_observations_trigger_idx` verified via `\di`); rebuilt `mras-composer`/`mras-ops-api`/`mras-ops-projector` containers from main; projector healthy (cursor = max `events.id` = 2075, 1 pg advisory lock held, `projector_ver=godview-projector-0.1.0`).
+- Follow-up issues filed (per CLAUDE.md §6): `mras-vision#23` (centralize scope-key stamping in `_log_event` — 5 event types still lack `screen_id`/`screen_kind`), `mras-composer#29` (schema-contract test running the selector's real SQL against migrated PG), `mras-ops#39` (forward-only cursor = no backfill for detections skipped before the `handle_detection` fix).
+
+**Learnings:**
+- `gh pr merge --delete-branch` exits non-zero when the head branch is checked out in a local worktree — the REMOTE merge still succeeds; in mras-vision the remote branch deletion was also aborted and needed explicit `git push origin --delete`. Verify merge state via `gh pr view` + `git fetch --prune`, never the exit code.
+- The projector container logs nothing (buffered Python stdout, no `PYTHONUNBUFFERED`) — health-check it via `projector_state` (cursor vs `max(events.id)`) and `pg_locks` advisory count instead of `docker logs`.
+
+**State:** God View v1 pipeline (events journal → projector → summary tables → viewer_exposures) is fully on `main` in all 5 repos; the dev stack runs from `main` — no worktree harness or compose override needed anymore (run per the Operational Reference / `start-mras.sh`; vision still native for camera access). Recommended: one live E2E re-validation from main (needs owner at the camera; runbook now on main at `docs/godview-live-e2e-runbook.md` area). Next lane: display peel-back orchestration (`docs/handoff-03-peelback-orchestration-spec.md`) — blocked on owner decisions Q1 (where the camera→display area mapping lives) and Q2 (which half of the displays round 2 keeps). Blocklist + biometric-privacy machinery remain deferred until production go-live.
+
 ## 2026-07-03 (b) — God View fix-stack: DBA/architect review pass done, 6 hardening fixes landed on the PRs
 **Changes:** (all pushed to their open PRs; nothing merged)
 - `mras-vision@9413dc8` (PR #22, `feat/vision-gaze-jointkey`, stacked on #21): `detection/success` now emits `match_status` (`matched_known` when a subject_profile matched, `no_match` otherwise; enum spellings from `mras-ops` `010_enums.sql`). Red `7b849e5` → green `9413dc8`; 128 tests.
