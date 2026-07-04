@@ -221,3 +221,32 @@ exactly one name source; a base-video-only personalized selection still gets the
 **Effort:** S (human) → S (CC+gstack)
 **Priority:** P2 — content/visual polish; owner deferred on 2026-06-20 ("leave it for now")
 **Depends on:** None
+
+## TODO-10: Display Peel-Back Orchestration (Phase 2)
+
+**What:** Change the round sequence so round 2 plays the named ad on **half** the screens the
+opener used — `floor(N/2)` of however many displays are in the person's area (`4→2`, `6→3`,
+`2→1`) — then stop and free them. Includes the prerequisite **area model**: a camera→displays
+mapping so the opener targets "all displays near the person," not the global display list.
+
+**Why:** Owner-specified product behavior (opener everywhere in the area → named ad on half →
+release). Today `ROUND2` keeps ALL the owner's displays as an A/B `pair_slot` split and the
+orchestrator only knows one flat `displays` list — no venue/area awareness.
+
+**Current state:** Fully specified, not built. Spec with the orchestrator state-machine map,
+the camera→display "area" gap, and 7 open design questions:
+`/Users/jn/code/minority_report_architecture/docs/handoff-03-peelback-orchestration-spec.md`.
+Blocked on two owner decisions: **Q1** where the area mapping lives (`zone_id` columns on
+`cameras`/`displays`, a `camera_displays` join table, or composer config) and **Q2** which half
+round 2 keeps (nearest-to-person vs deterministic subset; nearest also serves the deferred
+move-redistribution feature).
+
+**Where to start:** `/Users/jn/code/mras-composer/src/orchestrator/core.py` (`_reassign`) and
+`model.py` (`even_split`/`pair_slot` — add a "half" helper); area resolution from the mras-ops
+device registry (`cameras`/`displays`/`systems`). Pure state machine with injectable clock —
+TDD with fake clock + asserted Play/Idle sequences, then live E2E.
+
+**Effort:** M (human) → M (CC+gstack)
+**Priority:** P1 — next feature lane after God View; demo-visible behavior
+**Depends on:** owner decisions Q1/Q2; deferred follow-on: move-redistribution (composed clip
+follows a moving person to a new area without recompose)
