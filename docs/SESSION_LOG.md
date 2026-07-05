@@ -130,6 +130,10 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-05 (b) — Debate-cycle PRs MERGED; stack redeployed
+**Changes:** Owner-authorized merges: `mras-vision` #28→`ef0a311` (into its stack parent), #27→main **`aa5913e`** (12-factor Settings + journal chokepoint; closed #25/#26); `mras-composer` #40→`dfa03a7`, #38→main **`2febf93`** (abandon-TTL + ad-bound contract tests; closed #36/#37). Composer container rebuilt from main (`2febf93` — abandon-TTL live, default 900s). Follow-up issues filed: mras-vision .env.example sync + emit-time REQUIRED_KEYS warning (numbers in the issues themselves).
+**State:** All debate-cycle work landed. Vision native process must be RESTARTED to pick up #27/#28 (config refactor — same env var names/defaults, verified zero drift). Pending: owner walk-up E2E (presence + loudness + round-2 fixes from 2026-07-04, now plus the config/journal refactor); TODO-10 peel-back Q2 (which half).
+
 ## 2026-07-05 — Architecture-debate cycle: issues #25/#26/#36/#37 designed (8-architect debate), implemented, reviewed; 4 PRs ready
 **Changes:** (all open PRs, nothing merged; owner design approval 2026-07-04/05)
 - **Process:** each of the 4 follow-up issues got TWO senior-architect agents with opposing lenses (minimal-change vs durable-platform), independent proposals → cross-rebuttals → orchestrator synthesis → owner approval → implementation → independent adversarial review → fix cycles. Every debate converged with real concessions both ways.
