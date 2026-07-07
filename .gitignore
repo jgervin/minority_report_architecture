@@ -1,5 +1,9 @@
 .DS_Store
 *.pdf
+# Playwright MCP tool artifacts (regenerated per browser session, not a deliverable)
+.playwright-mcp/
+# Local design-reference images (20MB of binaries; kept local, not in repo history)
+dashboard_images_ideas/
 # Ignore local Claude state (worktrees, personal settings) but track shared config
 .claude/*
 !.claude/agents/
