@@ -84,8 +84,11 @@ Composition pipeline (per ad-run instance, correlated by trigger_id):
     → used_spoken_name / used_visible_name / used_likeness / used_voice_clone flags
   → Ad Run (ad_runs)
     → display_id, status (planned→composing→ready→dispatched→playing→completed/failed)
-  → Playback (playbacks) — one row per (trigger_id, display_id); multi-display runs fan out here
-  └── (deferred, Phase 3) Viewer Exposure (viewer_exposures) — watched/attention data
+  → Playback (playbacks) — one row per (trigger_id, screen_id); multi-display runs fan out here.
+    NOTE: 021_playbacks_rekey.sql re-keyed playbacks to UNIQUE(trigger_id, screen_id) and made
+    display_id NULLABLE (screen_id is the NOT NULL correlation key); display_id is back-filled
+    only after device registration resolves the screen_id.
+  └── (deferred) Viewer Exposure (viewer_exposures) — watched/attention data
 
 Health/observability (cross-cutting, feeds Systems & Logs):
   device_health_events (per device, device_status timeline)
@@ -177,9 +180,11 @@ Decision-Input satellite: subject profile, decision_type, confidence, decision_f
 Composition Run (branching Creative-Input satellite: ad/component/input_asset/personalization
 flags/output_asset) → Ad Run → Playback (one node per display, fans out). Ghosted/locked Viewer
 Exposure node, visually present but disabled — marks where the next God View follow-on (§9) will
-attach. Click any node → right-side inspector with full column values + error detail. Node color
-follows the health-mode vocabulary (green/yellow/red/gray) for future consistency with the later
-map work.
+attach. Click any node → right-side inspector with full column values + error detail. Note:
+`ad_runs` itself has no `error_code`/`error_message` columns — those live on `composition_runs`,
+`model_runs`, and `playbacks`, so the Ad Run node surfaces its failure reason from the failed
+upstream `composition_run` (or downstream `playback`), not from `ad_runs`. Node color follows the
+health-mode vocabulary (green/yellow/red/gray) for future consistency with the later map work.
 
 **Systems & Logs (`/systems`):** Search/filter bar + small KPI row. Systems table
 (org/location/system/type/status/device count), row click → drill-down. Drill-down: cameras/
@@ -199,6 +204,7 @@ Resolves both the God View grouping need and the open zone/area question in
 conventions of `012_physical.sql`):
 
 ```sql
+-- new enum defined here rather than in 010_enums.sql (010 is frozen / already applied)
 CREATE TYPE screen_group_type AS ENUM ('zone', 'ad_cluster', 'custom');
 
 CREATE TABLE screen_groups (
@@ -228,7 +234,10 @@ Design decisions:
   simultaneous multi-group membership today; a join table can replace this later without touching
   other tables (YAGNI).
 - **`ad_runs` gets no new column** — shared-group membership across playbacks in one ad run is
-  derivable via `playbacks → displays.screen_group_id`.
+  derivable via `playbacks → displays.screen_group_id`. Caveat: per 021_playbacks_rekey.sql,
+  `playbacks.display_id` is nullable and only back-filled after device registration resolves the
+  `screen_id`; until then the join yields nothing, so the Systems & Logs / Ad Detail UI must
+  tolerate an unresolved `screen_id` with no `screen_group` (fall back to raw `screen_id`).
 - **Both `cameras` and `displays` get the FK** (the original domain-model draft only proposed it on
   `cameras`) because the Systems & Logs drill-down groups both together under one wall/zone.
 
@@ -236,7 +245,10 @@ Design decisions:
 
 - **New standalone app** (e.g. `godview-prototype/`), not an extension of `mras-ops/frontend` — the
   production stack is expected to differ from this shadcn-based prototype, so the two are kept
-  decoupled.
+  decoupled. **This deliberately chooses `handoff-04-godview-ux-ui.md` §6 option (b)** (new app /
+  design system with shadcn + `react-router` + `reactflow`), overriding that doc's recommendation of
+  option (a) (extend the existing dark ops-console app, no new deps). handoff-04 framed §6 as owner
+  decisions; this override was made and approved in the 2026-07-07 design session.
 - **Stack:** React + Vite + TypeScript + shadcn/ui (Tailwind) + `reactflow` for the Ad Detail node
   graph.
 - **Mock data first:** build against realistic fixtures matching real schema shapes (real
