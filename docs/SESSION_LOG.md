@@ -130,6 +130,14 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-08 (c) — Redis cooldown ENABLED in vision .env (effective at next restart); TODO-11 filed
+
+**Changes:**
+- `mras-vision/.env` (**local only — gitignored, no commit**): added `REDIS_URL=redis://127.0.0.1:6379/0`. The RUNNING vision process still uses the in-memory store; the flag takes effect at the next vision restart.
+- `minority_report_architecture` — TODOS.md adds **TODO-11** (owner step): restart vision from own terminal + live on-camera E2E of the shared cooldown (incl. the restart-durability check the in-memory dict couldn't pass).
+
+**State:** TODO-1 rollout complete except the owner restart/E2E (TODO-11). Remaining open TODOs: 2, 3, 8, 11.
+
 ## 2026-07-08 (b) — TODO-1 Redis cooldown: already implemented; verified live + documented
 
 **Changes:**

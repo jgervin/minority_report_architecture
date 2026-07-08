@@ -294,3 +294,26 @@ TDD with fake clock + asserted Play/Idle sequences, then live E2E.
 **Priority:** P1 — next feature lane after God View; demo-visible behavior
 **Depends on:** owner decisions Q1/Q2; deferred follow-on: move-redistribution (composed clip
 follows a moving person to a new area without recompose)
+
+## TODO-11: Vision restart + live E2E of the Redis-shared cooldown (owner step)
+
+**What:** Restart native vision so it picks up `REDIS_URL=redis://127.0.0.1:6379/0` (added to
+`mras-vision/.env` on 2026-07-08), then live-E2E the shared cooldown on camera.
+
+**Why:** TODO-1's Redis store is merged, live-verified against the stack Redis at the module level,
+and enabled in `.env` — but the running vision process still uses the in-memory store until
+restarted, and a restart requires the owner's own terminal (macOS camera permission; a
+background/agent launch gets `not authorized to capture video`).
+
+**Steps:**
+1. From your terminal: restart vision (`mras-ops/run-vision-native.sh`).
+2. Walk in front of the camera → personalized ad plays → walk away and return within
+   `COOLDOWN_SECS` (30s) → NO replay (cooldown held).
+3. Prove durability: restart vision again *within* a fresh cooldown window and re-approach —
+   the cooldown must STILL hold (this is the behavior the in-memory dict could not provide).
+4. Optional: `docker exec mras-ops-redis-1 redis-cli KEYS 'cooldown:*'` while cooling down —
+   expect one TTL'd key, and an empty list once expired.
+
+**Effort:** XS (owner, ~5 min at the demo box)
+**Priority:** P1 — completes TODO-1's rollout
+**Depends on:** owner terminal access
