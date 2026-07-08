@@ -130,6 +130,19 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-08 (e) — TODO-8 multi-camera BUILT + MERGED + LIVE-DRILLED (failover 16.1s, 14/14 PASS)
+
+**Changes (merge-commit merged; red→green pairs preserved on main):**
+- `mras-ops` PR #49 → `main@38c02cb` (9 commits) — migration 027 (`standby` camera_role, `cameras.failover_eligible` DEFAULT false, partial expression index `events_camera_duty_idx`); audited `PATCH /cameras/{camera_id}` (only role/status/failover_eligible writable; identity schema-rejected; `camera_admin` journal in the same txn); God View systems drill-down additively gains `camera_role`/`failover_eligible`/`effective_duty` (latest `camera_duty` event, index-scanned — EXPLAIN-proven); vision fleet launcher (canonical `id::text` CAMERA_ID, PID-correct teardown — SIGINT harness-proven after review caught the `$!`-of-pipeline bug). **027 applied to dev; api + projector rebuilt — LIVE.** All PATCH semantics live-verified (200/422/422/404/400/400 + audit + duty display + restore).
+- `mras-vision` PR #32 → `main@ea021a4` (22 commits, 217 tests) — process-per-camera (`CAMERA_ID`), `FramePipeline` seam (Detection/Attention/Standby wrapping existing paths; CAMERA_ID-unset path verified behavior-identical arg-for-arg + additive `/health`), `RoleManager` + pure clockless `decide()` (spec §5.3), Redis duty lease (SET NX EX + holder-checked Lua renew/release), heartbeats **TTL = lease TTL** (outside-review C1 — the fix that halves failover latency), canonical-id discipline (I1), `camera_duty` journal matching binding I3.
+
+**LIVE HEADLESS FAILOVER DRILL (real Redis + Postgres + God View, stub pipelines, throwaway camera rows, cleaned up): 14/14 PASS.**
+Sequence observed: A→primary_id, B→watching; A crashed → B→acting_id in **16.1s** (bound ≤20s = lease 15s + tick); A returned → saw lease held, **no steal** (→standby); B released cooperatively → A re-claimed primary_id; God View showed both duties correctly end-to-end.
+
+**Process notes:** both branches' histories were REBUILT into red→green pairs pre-merge (unpushed; backup branch + byte-identical-tree verification + suite green at HEAD + reds pytest-proven by temporarily hiding impls). Ops review caught a real launcher bug (`$!` after a pipeline = sed's PID → trap orphaned the vision processes) — fixed + harness-proven before merge.
+
+**State:** TODO-8 ✅ code-complete and live on the stack (api/projector rebuilt). The RUNNING native vision still executes pre-multicam code — files on disk updated by the main pull, process untouched. **Owner steps (extends TODO-11):** restart vision from own terminal (loads multicam code + activates Redis cooldown; single-camera behavior identical), then for real multi-camera: register camera rows (cam_index, `PATCH failover_eligible`), `run-vision-fleet.sh`, on-camera failover drill. Follow-ups: mras-vision #33–#37 (final-review minors). Remaining open TODOs: 2, 3 (recon first), 11.
+
 ## 2026-07-08 (d) — TODO-8 multi-camera: SPEC + 2 PLANS written, outside-reviewed, amended (plan/spec only — no implementation)
 
 **Changes (docs only):**

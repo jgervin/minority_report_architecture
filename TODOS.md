@@ -208,18 +208,23 @@ optional enrichment — `{}` must keep working. Attention-outcome scoring is a S
 
 ---
 
-## TODO-8: Multi-Camera Feed / Device Management (Phase 2+) — 📐 SPEC'D + PLANNED (2026-07-08, not implemented)
+## TODO-8: Multi-Camera Feed / Device Management (Phase 2+) — ✅ DONE (2026-07-08, code-complete + live drill PASS)
 
-**Status:** Design spec + two implementation plans written, outside-reviewed (opus), and amended —
-implementation NOT started (owner requested plan/spec only). Includes the role-switching requirement
-added 2026-07-08: camera identity never changes; automatic ID-duty failover to a `failover_eligible`
-watcher via a Redis duty lease (≤15s takeover, no steals, no auto-failback); admin permanent
-reassignment via audited `PATCH /cameras/{id}`. Docs:
-- Spec: `docs/superpowers/specs/2026-07-08-multicam-roles-failover-design.md`
-- Plan A (vision runtime, 13 tasks): `docs/superpowers/plans/2026-07-08-multicam-plan-a-vision.md`
-- Plan B (ops registry/API/God View, 5 tasks): `docs/superpowers/plans/2026-07-08-multicam-plan-b-ops.md`
-Sequencing: after TODO-11 (vision restart — shared cooldown is Phase B/C's foundation) and the
-owner's production-level test of perception part 1.
+**Resolution:** Implemented per the outside-reviewed spec/plans (same-day). mras-ops PR #49
+(`main@38c02cb`): migration 027 (`standby` role, `cameras.failover_eligible`, duty-lookup index —
+applied to dev, api+projector rebuilt), audited `PATCH /cameras/{id}`, God View drill-down shows
+`camera_role`/`failover_eligible`/`effective_duty`, vision fleet launcher. mras-vision PR #32
+(`main@ea021a4`, 22 red→green commits, 217 tests): process-per-camera, `FramePipeline` seam
+(single-camera path verified behavior-identical), `RoleManager` + pure `decide()` duty state machine,
+Redis duty lease + heartbeats (TTL=lease TTL), journaled `camera_duty` transitions.
+**Live headless failover drill vs real Redis/Postgres/God View: 14/14 PASS — crash takeover in
+16.1s, no steal on primary return, cooperative handback, God View duty correct, registry cleaned.**
+Docs: spec + plans under `docs/superpowers/{specs,plans}/2026-07-08-multicam-*`. Follow-up minors:
+mras-vision issues #33–#37.
+**Owner steps to go multi-camera for real:** restart vision (TODO-11 — running process still has
+pre-multicam code; single-camera behavior identical after restart), register camera rows
+(cam_index + `PATCH failover_eligible`), launch via `run-vision-fleet.sh` from your terminal
+(camera permission), then an on-camera failover drill.
 
 **What:** Support multiple camera feeds per location — enrollment/detection cameras plus a
 dedicated display-adjacent camera per screen that is the authority for attention ("is the ID'd
