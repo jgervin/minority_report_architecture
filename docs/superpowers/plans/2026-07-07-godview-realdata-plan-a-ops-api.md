@@ -29,8 +29,16 @@
 - Create: `/Users/jn/code/mras-ops/api/src/godview/__init__.py` (empty)
 - Create: `/Users/jn/code/mras-ops/api/src/godview/paging.py`
 - Create: `/Users/jn/code/mras-ops/api/src/godview/readings.py`
+- Modify: `/Users/jn/code/mras-ops/api/tests/conftest.py` (add the `godview_isolate` fixture)
 - Create: `/Users/jn/code/mras-ops/api/tests/test_godview_paging.py`
 - Create: `/Users/jn/code/mras-ops/api/tests/test_godview_readings.py`
+
+**Test isolation (applies to every DB-backed God View test file):** `projector_pool` is **module-scoped**, so all tests in a file share one database and rows accumulate. Every God View test file that touches the DB MUST truncate between tests via the shared `godview_isolate` fixture (added to `conftest.py` in this task) by declaring at module top:
+```python
+import pytest
+pytestmark = pytest.mark.usefixtures("godview_isolate")
+```
+(The pure `test_godview_paging.py` does not need it — no DB.)
 
 **Interfaces:**
 - Produces:
@@ -106,7 +114,21 @@ def decode_cursor(s: str | None):
 Run: `cd /Users/jn/code/mras-ops/api && pytest tests/test_godview_paging.py -v`
 Expected: PASS (2 tests).
 
-- [ ] **Step 6: Write the failing readings test**
+- [ ] **Step 6: Add the shared isolation fixture to conftest.py, then write the failing readings test**
+
+Append this fixture to `/Users/jn/code/mras-ops/api/tests/conftest.py` (it is opt-in — existing projector tests are unaffected):
+
+```python
+@pytest.fixture
+async def godview_isolate(projector_pool):
+    """Function-scoped clean slate for God View tests (projector_pool is module-scoped)."""
+    await projector_pool.execute(
+        "TRUNCATE organizations, locations, systems, cameras, displays, screen_groups, "
+        "devices, ad_runs, composition_runs, personalization_decisions, playbacks, "
+        "device_health_events, system_health_events, subject_observations, "
+        "unresolved_devices, events CASCADE")
+    yield
+```
 
 Create `/Users/jn/code/mras-ops/api/tests/test_godview_readings.py`:
 
@@ -114,7 +136,11 @@ Create `/Users/jn/code/mras-ops/api/tests/test_godview_readings.py`:
 """Per-camera detection readings aggregated from subject_observations (last 60s)."""
 import uuid
 
+import pytest
+
 from src.godview.readings import readings_for_system
+
+pytestmark = pytest.mark.usefixtures("godview_isolate")
 
 
 async def _seed_system_with_camera(pool):
@@ -209,7 +235,7 @@ Expected: PASS (2 tests).
 
 - [ ] **Step 10: Commit (delegate to git-flow-manager)**
 
-Delegate: create branch `feat/godview-read-endpoints` off `main` in `/Users/jn/code/mras-ops`; stage `api/src/godview/__init__.py`, `api/src/godview/paging.py`, `api/src/godview/readings.py`, `api/tests/test_godview_paging.py`, `api/tests/test_godview_readings.py`; commit:
+Delegate: create branch `feat/godview-read-endpoints` off `main` in `/Users/jn/code/mras-ops`; stage `api/src/godview/__init__.py`, `api/src/godview/paging.py`, `api/src/godview/readings.py`, `api/tests/conftest.py`, `api/tests/test_godview_paging.py`, `api/tests/test_godview_readings.py`; commit:
 ```
 feat: godview package scaffold — keyset cursors + camera readings helper
 ```
@@ -236,7 +262,11 @@ Create `/Users/jn/code/mras-ops/api/tests/test_godview_dashboard.py`:
 """God View dashboard: server-computed counts + bounded candidate rows."""
 import uuid
 
+import pytest
+
 from src.godview.dashboard import get_dashboard
+
+pytestmark = pytest.mark.usefixtures("godview_isolate")
 
 
 async def _org_loc(pool):
@@ -308,7 +338,8 @@ async def test_recent_health_drops_unify_device_and_system(projector_pool):
         "VALUES ($1,'offline', '{\"message\":\"system down\"}'::jsonb, now())", sid)
     # device health drop, device projected as a camera named "CamX"
     dev = uuid.uuid4()
-    await projector_pool.execute("INSERT INTO devices (id,device_type) VALUES ($1,'camera')", dev)
+    await projector_pool.execute(
+        "INSERT INTO devices (id,system_id,device_type,name) VALUES ($1,$2,'camera','DevX')", dev, sid)
     await projector_pool.execute(
         "INSERT INTO cameras (id,system_id,device_id,name,screen_id) VALUES ($1,$2,$3,'CamX','scr_x')",
         uuid.uuid4(), sid, dev)
@@ -492,7 +523,23 @@ Create `/Users/jn/code/mras-ops/api/tests/test_godview_ad_runs.py`:
 """God View ad-runs list: server-side filter + keyset pagination + stage flags."""
 import uuid
 
+import pytest
+
 from src.godview.ad_runs import get_ad_runs, get_ad_run_filters
+
+pytestmark = pytest.mark.usefixtures("godview_isolate")
+
+
+async def _seed_decision(pool, trig):
+    """personalization_decisions.event_id is a NOT NULL FK to events — seed an events row first."""
+    eid = await pool.fetchval(
+        "INSERT INTO events (trigger_id, ts, service, event_type, status, payload) "
+        "VALUES ($1, now(), 'mras-vision','track','opened','{}'::jsonb) RETURNING id", trig)
+    dec = uuid.uuid4()
+    await pool.execute(
+        "INSERT INTO personalization_decisions (id,trigger_id,event_id,decision_type) VALUES ($1,$2,$3,'identity')",
+        dec, trig, eid)
+    return dec
 
 
 async def _org_loc_sys(pool, sys_name="Sys1"):
@@ -522,11 +569,8 @@ async def test_filter_by_system(projector_pool):
 async def test_stage_flags_reflect_pipeline(projector_pool):
     org, loc, sid = await _org_loc_sys(projector_pool)
     trig = uuid.uuid4()
-    dec = uuid.uuid4()
+    dec = await _seed_decision(projector_pool, trig)
     comp = uuid.uuid4()
-    await projector_pool.execute(
-        "INSERT INTO personalization_decisions (id,trigger_id,event_id,decision_type) VALUES ($1,$2, nextval('events_id_seq'), 'identity')",
-        dec, trig)
     await projector_pool.execute("INSERT INTO composition_runs (id,trigger_id,status) VALUES ($1,$2,'rendered')", comp, trig)
     run = uuid.uuid4()
     await projector_pool.execute(
@@ -594,7 +638,7 @@ async def get_ad_runs(conn, *, status=None, system_id=None, campaign_id=None,
                ar.system_id, s.name AS system_name, l.name AS location_name,
                ar.campaign_id, cmp.name AS campaign_name,
                (ar.personalization_decision_id IS NOT NULL) AS stage_decision,
-               (cr.status IN ('selected','rendered'))       AS stage_composition,
+               COALESCE(cr.status IN ('selected','rendered'), false) AS stage_composition,  -- LEFT JOIN: NULL->false
                EXISTS (SELECT 1 FROM playbacks p WHERE p.ad_run_id = ar.id AND p.status = 'ended') AS stage_playback
         FROM ad_runs ar
         LEFT JOIN systems s   ON s.id = ar.system_id
@@ -690,11 +734,8 @@ from src.godview.ad_runs import get_ad_run
 async def test_ad_run_detail_bundles_pipeline(projector_pool):
     org, loc, sid = await _org_loc_sys(projector_pool)
     trig = uuid.uuid4()
-    dec = uuid.uuid4()
+    dec = await _seed_decision(projector_pool, trig)  # decision_type='identity'
     comp = uuid.uuid4()
-    await projector_pool.execute(
-        "INSERT INTO personalization_decisions (id,trigger_id,event_id,decision_type,decision_confidence,decision_factors) "
-        "VALUES ($1,$2, nextval('events_id_seq'), 'identity', 0.91, '{\"k\":\"v\"}'::jsonb)", dec, trig)
     await projector_pool.execute(
         "INSERT INTO composition_runs (id,trigger_id,render_mode,status,error_code) VALUES ($1,$2,'template_overlay','failed','OVERLAY_RENDER_TIMEOUT')",
         comp, trig)
@@ -801,7 +842,7 @@ feat: GET /god-view/ad-runs/{id} — pipeline detail for the ad-detail graph
 - Modify: `/Users/jn/code/mras-ops/api/src/main.py` (import + 2 routes)
 
 **Interfaces:**
-- Consumes: `encode_cursor`, `decode_cursor` from `src.godview.paging`; `readings_for_system` from `src.godview.readings`.
+- Consumes: `readings_for_system` from `src.godview.readings`. Uses its OWN name-keyed cursor (`encode_cursor_name`/`_decode_name_cursor`), not `paging.decode_cursor`.
 - Produces:
   - `async def get_systems(conn, *, search=None, cursor=None, limit=50) -> dict` → `{"counts": {"total_systems","active_systems","unresolved_devices"}, "items": [{id,name,org_name,location_name,system_type,status,device_count}], "next_cursor": str|None}`. Ordered by `(name ASC, id ASC)`; keyset cursor on `(name, id)`.
   - `async def get_system(conn, system_id) -> dict | None` → `None` if missing, else `{"system": {...}, "screen_groups": [{id,name,group_type}], "cameras": [{id,name,status,screen_group_id,face_count,confidence}], "displays": [{id,name,status,screen_id,screen_group_id}]}`.
@@ -814,7 +855,11 @@ Create `/Users/jn/code/mras-ops/api/tests/test_godview_systems.py`:
 """God View systems list (counts + search + keyset) and drill-down."""
 import uuid
 
+import pytest
+
 from src.godview.systems import get_systems, get_system
+
+pytestmark = pytest.mark.usefixtures("godview_isolate")
 
 
 async def _org_loc(pool):
@@ -907,8 +952,23 @@ Counting devices and systems is unbounded, so it happens in SQL; the client
 systemsWithRollup/systemsKpis selectors map the returned page/counts. Drill-down
 is fetched on demand (one system's devices), so its readings use readings_for_system.
 """
-from src.godview.paging import encode_cursor, decode_cursor
+import uuid
+
 from src.godview.readings import readings_for_system
+
+
+def encode_cursor_name(name: str, row_id) -> str:
+    return f"{name}|{row_id}"
+
+
+def _decode_name_cursor(cursor):
+    """This endpoint's sort key is (name, id), so the cursor's first field is a NAME,
+    not a timestamp — decode it as text (do NOT reuse paging.decode_cursor, which
+    parses the first field with datetime.fromisoformat)."""
+    if not cursor:
+        return (None, None)
+    name, _, rid = cursor.partition("|")
+    return (name, uuid.UUID(rid))
 
 
 async def get_systems(conn, *, search=None, cursor=None, limit=50) -> dict:
@@ -916,7 +976,7 @@ async def get_systems(conn, *, search=None, cursor=None, limit=50) -> dict:
     active = await conn.fetchval("SELECT count(*) FROM systems WHERE status = 'active'")
     unresolved = await conn.fetchval("SELECT count(*) FROM unresolved_devices")
 
-    cur_name, cur_id = decode_cursor(cursor)
+    cur_name, cur_id = _decode_name_cursor(cursor)
     rows = await conn.fetch(
         """
         SELECT s.id, s.name, o.name AS org_name, l.name AS location_name,
@@ -946,10 +1006,6 @@ async def get_systems(conn, *, search=None, cursor=None, limit=50) -> dict:
         "items": items,
         "next_cursor": next_cursor,
     }
-
-
-def encode_cursor_name(name: str, row_id) -> str:
-    return f"{name}|{row_id}"
 
 
 async def get_system(conn, system_id) -> dict | None:
@@ -983,7 +1039,7 @@ async def get_system(conn, system_id) -> dict | None:
     }
 ```
 
-Note: `get_systems` decodes the cursor with the shared `decode_cursor` (which splits on `|`) but encodes with a name-based `encode_cursor_name` because this endpoint's sort key is `(name, id)`, not `(timestamp, id)`. `decode_cursor` returns `(name_str, uuid)` here — the first element is treated as text in the `$2::text` comparison, which is correct.
+Note: this endpoint's sort key is `(name, id)`, so it uses its own `encode_cursor_name` / `_decode_name_cursor` pair (name kept as text) — deliberately NOT `paging.decode_cursor`, which parses the first field as a timestamp and would crash on a system name. The paging module's timestamp cursor is used only by ad-runs and events.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1041,7 +1097,11 @@ Create `/Users/jn/code/mras-ops/api/tests/test_godview_events.py`:
 """God View unified health-event log, keyset paginated newest-first."""
 import uuid
 
+import pytest
+
 from src.godview.events import get_events
+
+pytestmark = pytest.mark.usefixtures("godview_isolate")
 
 
 async def _system(pool, name="Sys1"):
