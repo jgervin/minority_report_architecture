@@ -222,7 +222,12 @@ exactly one name source; a base-video-only personalized selection still gets the
 **Priority:** P2 — content/visual polish; owner deferred on 2026-06-20 ("leave it for now")
 **Depends on:** None
 
-## TODO-10: Display Peel-Back Orchestration (Phase 2)
+## TODO-10: Display Peel-Back Orchestration (Phase 2) — ✅ DONE (2026-07-06)
+
+**Resolution:** Implemented 2026-07-05 in mras-composer (PR #41, review-passed), merged + live-validated
+2026-07-06. See `docs/SESSION_LOG.md` entries 2026-07-05 (c) and 2026-07-06 for the state-machine changes
+and validation. Deferred follow-on (still open): move-redistribution (composed clip follows a moving person
+to a new area without recompose).
 
 **What:** Change the round sequence so round 2 plays the named ad on **half** the screens the
 opener used — `floor(N/2)` of however many displays are in the person's area (`4→2`, `6→3`,
