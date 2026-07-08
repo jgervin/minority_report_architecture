@@ -71,7 +71,15 @@ Redis queue if multi-process P1 is needed.
 
 ---
 
-## TODO-4: Electron Kiosk Watchdog / Auto-Restart (Phase 1)
+## TODO-4: Electron Kiosk Watchdog / Auto-Restart (Phase 1) — ✅ DONE (2026-07-08)
+
+**Resolution:** launchd plist (KeepAlive+RunAtLoad) and `/health` (port 8003, crash backoff) already
+existed in `mras-display/launchd/`; the real gap was that `/health` never verified renderer liveness —
+a HUNG renderer still reported healthy. Fixed in mras-display PR #14 (merged, `main@9b2d7f6`):
+`/health` now does a real IPC ping/pong per window (2s timeout, leak-safe listener cleanup on both
+outcomes, unique reply ids for concurrent polls). Suite 58/58. P3-C4 alert wiring remains deferred.
+Takes effect the next time the kiosk starts from updated main. Operator verification steps in
+`mras-display/launchd/README.md`.
 
 **What:** Add a process watchdog so the Electron kiosk auto-restarts if it crashes.
 
@@ -150,7 +158,19 @@ ultrafast`, or run P2 natively outside Docker.
 
 ---
 
-## TODO-7: Use Perception Signals in Ad Selection / Generation (Phase 2 — part 2)
+## TODO-7: Use Perception Signals in Ad Selection / Generation (Phase 2 — part 2) — ✅ DONE (2026-07-08, selection-enrichment scope)
+
+**Resolution:** Shipped the conservative scope — selection enrichment only (no GenAI feed). mras-ops
+PR #47 (`026_ads_targeting.sql`: nullable `ads.targeting jsonb`, mood tokens documented; applied to dev)
++ mras-composer PR #43 (merged, `main@4b9e89f`; composer container rebuilt): `scene_context`
+(mood/objects) re-ranks eligible ads (mood +2, object +1, ties keep SQL order; `person` ignored;
+confidence gates env-tunable). Empty/absent scene_context or untargeted ads = prior behavior
+byte-for-byte (proven unit+mocked+live-SQL); `ads.targeting` probed at startup so unmigrated DBs run the
+legacy query. Scene context reaches orchestrated renders via a TTL'd post-gate cache; matches audited via
+`decision_factors` → God View. Suite 251 passed. Live-verified in the running container (sad → targeted
+ad + factors; empty → newest ad, factors null). Deferred remnants: GenAI/scene_context into P2-C4;
+"mention the object" copy; attention-outcome feedback into selection (viewer_exposures report exists
+read-only); variant rounds don't stamp decision_factors (issue filed).
 
 **What:** Consume the Phase 2 perception signals (objects + colors, viewer mood, attention) as
 context for ad selection, personalization, and GenAI ad generation. Examples: mention a detected
@@ -200,7 +220,15 @@ Cross-camera person correlation reuses ArcFace embeddings.
 
 ---
 
-## TODO-9: Double-Name — suppress always-on overlay when the component renders the name (Phase 0.5)
+## TODO-9: Double-Name — suppress always-on overlay when the component renders the name (Phase 0.5) — ✅ DONE (2026-07-08)
+
+**Resolution:** mras-composer PR #42 (merged, red→green history preserved): `_render_overlay_inserts`
+skips the always-on name overlay when `selection.composition_id` AND `selection.personalized_field`
+are set (field plumbed through `AdSelection` from the already-fetched `ads` column). Overlay remains
+the fallback for base-video-only ads. **Authoring caveat:** `ads.personalized_field` is NOT NULL
+DEFAULT 'text', so a future NON-name-rendering component ad must set `personalized_field=''` to keep
+the overlay, or the name silently disappears. Composer container rebuilt — live. Visual owner check
+(one name on screen for helloname ads) still worth an eyeball at next demo.
 
 **What:** When an ad is bound to a name-rendering custom Remotion component (e.g. `helloname`,
 `hellonamepw`), do NOT also composite the always-on animated name overlay — pick one source.
