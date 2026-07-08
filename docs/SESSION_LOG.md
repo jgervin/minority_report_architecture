@@ -130,6 +130,22 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-08 (d) — TODO-8 multi-camera: SPEC + 2 PLANS written, outside-reviewed, amended (plan/spec only — no implementation)
+
+**Changes (docs only):**
+- `docs/superpowers/specs/2026-07-08-multicam-roles-failover-design.md` — multi-camera roles/failover/device-management design. Core model: **identity (permanent) vs desired role (admin truth, `cameras.camera_role`) vs effective duty (runtime truth, Redis lease + journaled transitions)**. Owner requirements covered: ID-camera crash → `failover_eligible` watcher auto-takes the ID duty via a Redis duty lease (SET NX EX + renew, ≤15s, graceful release, no steals, no auto-failback) WITHOUT changing the camera's name; admin permanent reassignment via audited `PATCH /cameras/{id}` (promote/demote/offline). 15 locked decisions; `FramePipeline`/`RoleManager` seam for growth.
+- `docs/superpowers/plans/2026-07-08-multicam-plan-a-vision.md` — vision runtime (13 TDD tasks, Phases A–C): process-per-camera, pipelines behind the seam, pure clockless `decide()` core tested with fake clocks + fakeredis, byte-identical single-camera gate.
+- `docs/superpowers/plans/2026-07-08-multicam-plan-b-ops.md` — ops (5 TDD tasks, Phases C–D): migration 027 (`standby` role, `failover_eligible`, partial expression index for duty lookups), audited PATCH endpoint, God View drill-down gains `camera_role`/`failover_eligible`/`effective_duty`.
+- TODOS.md — TODO-8 marked 📐 SPEC'D + PLANNED (not implemented, per owner).
+
+**Learnings (from planning + outside review — worth keeping):**
+- **Outside review (opus) caught a Critical defaults slip:** heartbeat TTL (3×poll=30s) > lease TTL (15s) would have DOUBLED real failover latency (a dead primary's lingering heartbeat blocks the watcher's claim guard). Fix: heartbeat EX = lease TTL. Also: canonical `id::text` must be the ONLY camera identity string in Redis keys/journal payloads (raw env strings silently break the anti-steal guard AND God View's duty match).
+- Schema facts: `cameras.status` is `device_status` (`active|degraded|offline|retired`), NOT `lifecycle_status`; `camera_role` enum already had `detection/enrollment/audience_measurement/security_context`; vision's `log_journal_event` does NOT stamp the first-class `events.camera_id` column → duty lookups match on `payload->>'camera_id'` (binding contract I3).
+- PG16: `ALTER TYPE ... ADD VALUE` is transaction-legal if the new value isn't used in the same transaction; asyncpg enum writes should go as text + server-side cast (`$n::camera_role`) to dodge stale codec caches on pre-ALTER pooled connections (api restart still needed after applying 027 live).
+- Recovery handback has a ≤1-tick (~5s) no-holder gap — steal-safe (returning primary's heartbeat suppresses other claimants); documented, accepted as the cost of one-duty-per-camera.
+
+**State:** TODO-8 ready to implement when owner says go (sequenced after TODO-11 vision restart + owner's perception part-1 live check). Nothing implemented; no repo code touched. Open TODOs: 2, 3 (recon first — burst-queue code exists), 8 (ready), 11 (owner).
+
 ## 2026-07-08 (c) — Redis cooldown ENABLED in vision .env (effective at next restart); TODO-11 filed
 
 **Changes:**

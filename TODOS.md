@@ -208,7 +208,18 @@ optional enrichment — `{}` must keep working. Attention-outcome scoring is a S
 
 ---
 
-## TODO-8: Multi-Camera Feed / Device Management (Phase 2+)
+## TODO-8: Multi-Camera Feed / Device Management (Phase 2+) — 📐 SPEC'D + PLANNED (2026-07-08, not implemented)
+
+**Status:** Design spec + two implementation plans written, outside-reviewed (opus), and amended —
+implementation NOT started (owner requested plan/spec only). Includes the role-switching requirement
+added 2026-07-08: camera identity never changes; automatic ID-duty failover to a `failover_eligible`
+watcher via a Redis duty lease (≤15s takeover, no steals, no auto-failback); admin permanent
+reassignment via audited `PATCH /cameras/{id}`. Docs:
+- Spec: `docs/superpowers/specs/2026-07-08-multicam-roles-failover-design.md`
+- Plan A (vision runtime, 13 tasks): `docs/superpowers/plans/2026-07-08-multicam-plan-a-vision.md`
+- Plan B (ops registry/API/God View, 5 tasks): `docs/superpowers/plans/2026-07-08-multicam-plan-b-ops.md`
+Sequencing: after TODO-11 (vision restart — shared cooldown is Phase B/C's foundation) and the
+owner's production-level test of perception part 1.
 
 **What:** Support multiple camera feeds per location — enrollment/detection cameras plus a
 dedicated display-adjacent camera per screen that is the authority for attention ("is the ID'd
