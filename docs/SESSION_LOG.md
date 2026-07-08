@@ -130,6 +130,30 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-08 — Batch: TODO-4/7/9 + viewer-exposure analytics ALL MERGED + LIVE (orchestrated, plan-verified, outside-reviewed)
+
+**Changes (all merge-commit merged — red→green history preserved on main from this batch on):**
+- `minority_report_architecture` PR #33 → `main@43c353a` — docs housekeeping (SESSION_LOG entries, TODO-10 marked ✅ done).
+- `mras-composer` PR #42 → `main@08a77df` — **TODO-9**: skip always-on name overlay when the component renders the name (`composition_id AND personalized_field`); field plumbed through `AdSelection`. AUTHORING CAVEAT: `personalized_field` is NOT NULL DEFAULT 'text' — future non-name components must set `''` to keep the overlay.
+- `mras-display` PR #14 → `main@9b2d7f6` — **TODO-4**: `/health` (8003) now does real IPC ping/pong renderer-liveness (2s timeout, leak-safe on both outcomes, unique reply ids); launchd KeepAlive + basic /health pre-existed. 58/58 tests. Activates on next kiosk start.
+- `mras-ops` PR #46 → `main@860568a` — **viewer-exposure backend**: additive `viewer_exposure` aggregate on `GET /god-view/ad-runs/{id}` over projector-derived `viewer_exposures` (honest names: `estimated_viewers`/`identified_viewers`/`anonymous_observations`); ad_runs rollup columns passed through (all NULL — no producer; issue filed). godview suite 24/24.
+- `godview-prototype` PR #8 → `main@c2bd34b` — **viewer-exposure frontend**: Ad Detail "Viewer Exposure" ghost node lights up when data exists (node face "N viewers"); honest "no exposure data yet" otherwise. 36/36, live Playwright E2E green both states (populated run `16ab8f25…` 12 exposures; empty `de677392…`).
+- `mras-ops` PR #47 → `main@02b8af6` — **TODO-7 migration**: `026_ads_targeting.sql` (nullable `ads.targeting jsonb`, mood tokens in COMMENT). Applied to dev DB.
+- `mras-composer` PR #43 → `main@4b9e89f` — **TODO-7**: scene_context (mood/objects) re-ranks eligible ads (mood +2, object +1, stable ties; `person` ignored; 0.5 confidence gates env-tunable). Startup probe of `ads.targeting` → unmigrated DBs run the byte-identical legacy query. TTL'd post-gate scene-context cache (prunes on put). `decision_factors` audit → God View. Suite 251 passed (baseline 202). **Composer + ops-api containers rebuilt from main — all merged work is LIVE on :8080/:8002.**
+
+**Process (worked well):** 4 parallel read-only planners → plan-verification reviews (opus outside opinions on the two big lanes) → conservative amendment decisions by orchestrator → staged file-scoped commits so red→green shows in git history → per-branch reviews → merge-commit merges. Plan verification caught real issues pre-code: TODO-9's fake-RED ordering, TODO-7's cache leak + UndefinedColumn deploy risk, exposure's mixed-grain metric naming.
+
+**Learnings / gotchas:**
+- **TODO-9 premise drift:** `ads.personalized_field` is `NOT NULL DEFAULT 'text'` (never distinguishes name-rendering components by itself) and `AdSelection` didn't carry it — the fix required plumbing; all current ads bind `helloname` so no live ad lost its overlay.
+- **Composer trigger gate keys on `trigger["uuid"]`** — a `/trigger` with only `subject_profile_id` and no connected kiosk goes legacy-broadcast and gates standard; the orchestrated branch remaps the key, the legacy branch does not. Also: with NO kiosk WS connected, triggers take `_trigger_single_broadcast`, which never emits `decision/made` — verify selection via an in-container selector run, not the events table.
+- **Demo ads have IDENTICAL `created_at`** (same seed txn) — "newest ad" is a tie; any test needing deterministic default order must de-tie first (and restore).
+- **TODO-7 live-verified in-container:** sad mood → older targeted ad wins with `match_score: 2` factors; empty scene → newest ad, factors null. Demo data restored byte-exact after (targeting NULL, created_at re-tied).
+- `gh pr merge --delete-branch` fails local cleanup when the base branch is checked out in another worktree (`fatal: 'main' is already checked out`) — merge succeeds; do remote delete + local cleanup separately.
+- `docker exec` heredocs silently no-op without `-i`.
+- Exposure grain: `viewer_exposures` bystanders are per-observation → metric named `anonymous_observations` (not "viewers") on purpose; `identified_viewers` is genuinely profile-deduped.
+
+**State:** All 5 batch lanes shipped: TODO-4 ✅, TODO-7 ✅ (selection-enrichment scope), TODO-9 ✅, viewer-exposure ✅, housekeeping ✅. TODOS.md updated (4/7/9/10 marked done; remaining open: TODO-1/2/3/8). Live stack: ops-api + composer rebuilt from main; kiosk update pending next start; projector/vision untouched. Follow-up issues filed: mras-composer #44 (variant decision_factors gap), mras-ops #48 (ad_runs rollup producer gap + probe schema-filter hardening note). Owner eyeball pending: single name on screen for helloname ads at next demo.
+
 ## 2026-07-07 (e) — God View follow-ups all MERGED + LIVE (issue #44 satellite fields, qs/double-fetch cleanups)
 
 **Changes (all squash-merged to `main`):**
