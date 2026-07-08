@@ -130,6 +130,19 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-08 (b) — TODO-1 Redis cooldown: already implemented; verified live + documented
+
+**Changes:**
+- `mras-vision` (PR pending merge at write time) — `.env.example` documents the `REDIS_URL` opt-in knob (was completely undiscoverable).
+- `minority_report_architecture` — TODOS.md marks TODO-1 ✅ with resolution + owner enable step.
+
+**Learnings:**
+- **TODO-1 was already fully built** (`mras-vision/src/identity/cooldown.py`, docstring "T1, Phase 1"): `make_cooldown_store(redis_url)` → atomic Redis claim (SET NX EX for max_ads=1; Lua for >1; all keys TTL'd — nothing accumulates in Redis per owner rule) with per-call graceful in-memory fallback; unset REDIS_URL = Phase 0 in-memory. Wired via lifespan+resolver; `redis`/`fakeredis` already in requirements; compose Redis is published loopback-only *specifically for native vision*. 11/11 tests. TODOS.md was simply stale — third instance of this pattern (TODO-10, TODO-4 90%, now TODO-1 100%). **Check the code before planning any TODOS.md item.**
+- **Verified live** against running `mras-ops-redis-1`: first claim wins / second blocked / TTL lands (3s) / claim frees after expiry / unreachable Redis (port 6390) logs a warning and falls back with correct blocking semantics.
+- Conservative call: did NOT set `REDIS_URL` in the live `.env` and did NOT restart vision (camera permission = owner terminal). **Owner enable step:** add `REDIS_URL=redis://127.0.0.1:6379/0` to `mras-vision/.env`, restart vision from own terminal. Until then vision stays in-memory (today's behavior).
+
+**State:** TODO-1 ✅ (implementation pre-existing, live-verified, knob documented). Remaining open TODOs: 2 (AWS GPU profile), 3 (burst backpressure), 8 (multi-camera).
+
 ## 2026-07-08 — Batch: TODO-4/7/9 + viewer-exposure analytics ALL MERGED + LIVE (orchestrated, plan-verified, outside-reviewed)
 
 **Changes (all merge-commit merged — red→green history preserved on main from this batch on):**

@@ -4,7 +4,18 @@ Items deferred from the CEO plan review. All Phase 1+ unless noted.
 
 ---
 
-## TODO-1: Shared Cooldown Store (Phase 1)
+## TODO-1: Shared Cooldown Store (Phase 1) — ✅ DONE (verified 2026-07-08; implemented earlier)
+
+**Resolution:** Already fully implemented in `mras-vision/src/identity/cooldown.py` ("T1, Phase 1"):
+`make_cooldown_store(Settings.redis_url)` → Redis-backed atomic claim (SET NX EX for max_ads=1; one
+Lua script for max_ads>1; every key TTL'd — cooldown flag at COOLDOWN_SECS, impression counter capped
+24h) with per-call graceful fallback to the in-memory store when Redis is unreachable; unset REDIS_URL
+= Phase 0 in-memory. Wired via `main.py` lifespan + resolver; `redis`/`fakeredis` already in
+requirements; compose already publishes Redis loopback-only for native vision. 11/11 tests pass.
+**Verified live 2026-07-08** against the running `mras-ops-redis-1`: claim/block/TTL-expiry/fallback
+all correct. Gap closed: `REDIS_URL` documented in `.env.example` (was undiscoverable).
+**To enable on the demo box (owner step):** add `REDIS_URL=redis://127.0.0.1:6379/0` to
+`mras-vision/.env` and restart vision from your own terminal (camera permission).
 
 **What:** Replace in-memory `_screen_cooldown` dict with a Redis-backed shared store.
 
