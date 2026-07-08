@@ -56,7 +56,7 @@ O(1) payload regardless of fleet size. Returns bounded rows + raw counts; the cl
 ```
 - `fleet` buckets map `lifecycle_status`: `active`→healthy; `degraded`; `offline`; `total` = count of **all** `systems` rows. Client `fleetSummary` derives the displayed KPI.
 - The server returns the top-~10 candidate rows from **each** failure source separately (not a merged/shaped list); the client `recentFailures` selector merges them, maps severity (`error_code`/`offline`→crit, `degraded`→warn), builds the message + `where` + `ad_run_id` (deep-link, from failed runs only), orders newest-first, and takes the top 5. Top-10 per source guarantees the merged top-5 is correct.
-- `camera_rows.face_count`/`confidence` derived from `subject_observations` in the **last 60s** joined to `cameras` by `screen_id` (window is a helper constant; exact aggregation columns confirmed against `subject_observations` in the plan — if it lacks a usable per-camera confidence, degrade to count-only and note it). Client `camerasWithReading` formats.
+- `camera_rows.face_count`/`confidence` derived from `subject_observations` in the **last 60s** joined to `cameras` by **`camera_id`** (`subject_observations` has no `screen_id`): `face_count = count(*)` of recent observations for the camera, `confidence = avg(face_quality_score)` (nullable → `COALESCE(...,0)`). Window is a helper constant. Client `camerasWithReading` formats.
 
 ### 4.2 `GET /god-view/ad-runs`
 Composition Activity list. Server-side filter + keyset pagination.
