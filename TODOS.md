@@ -58,7 +58,17 @@ Document in a short README: estimated cost per 4-hour event, how to transfer enr
 
 ---
 
-## TODO-3: P1→P2 Burst Handling / asyncio Queue (Phase 1)
+## TODO-3: P1→P2 Burst Handling / asyncio Queue (Phase 1) — ✅ DONE (verified 2026-07-09; implemented earlier as "T2 backpressure")
+
+**Resolution:** Already fully implemented in `mras-vision/src/identity/resolver.py`: bounded
+`asyncio.Queue(maxsize=max(1, TRIGGER_QUEUE_MAX))` (default 8, env-tunable via config tuning) +
+a single crash-guarded drain worker (FIFO, one in-flight composer call, task auto-restarts if it
+ever dies) + drop-on-full policy that JOURNALS a `dispatch/dropped TRIGGER_DROPPED` event (drops
+are observable, exceeding the spec's silent-discard ask). 6/6 tests pass (`tests/test_burst_queue.py`).
+The spec's "evaluate a Redis queue if multi-process" is resolved by the TODO-8 architecture:
+per-process queues + the shared Redis cooldown claim (exactly one trigger per person per window
+across all camera processes). Fourth stale TODOS.md item found already-built (after 10, 4, 1) —
+the vision code's own T1/T2 labels show cooldown+backpressure shipped together in an earlier session.
 
 **What:** Add backpressure to the P1→P2 HTTP dispatch path for multi-camera concurrent
 triggers.

@@ -130,6 +130,17 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-09 (b) — TODO-3 recon: burst backpressure already implemented ("T2"); marked done
+
+**Changes:** TODOS.md marks TODO-3 ✅ (docs only; no code).
+
+**Learnings:**
+- **TODO-3 was already fully built** in `mras-vision/src/identity/resolver.py`: bounded `asyncio.Queue` (default 8, `TRIGGER_QUEUE_MAX` env; `max(1, …)` guards against asyncio's unbounded-when-0 footgun), single crash-guarded FIFO drain worker (auto-restarted if dead), drop-on-full journaled as `dispatch/dropped TRIGGER_DROPPED` (observable drops — better than the spec's silent discard). 6/6 tests.
+- The spec's "Redis queue if multi-process" question is resolved by the TODO-8 architecture: per-process queues + the shared Redis cooldown claim = at most one trigger per person per window fleet-wide.
+- **Fourth stale TODOS.md item found already-built** (TODO-10, TODO-4 ~90%, TODO-1, now TODO-3). The vision code's internal T1/T2 labels show cooldown+backpressure shipped as a pair in an earlier session. Standing rule reaffirmed: recon the code before planning ANY TODOS.md item.
+
+**State:** Open TODOs now just: **2** (AWS GPU rental profile — pure infra scripting, needed before the first paid venue event) and **11** (owner: vision restart + cooldown E2E; camera prep now doable from `/fleet`). Fleet P3/P4 spec'd-only awaiting owner feedback.
+
 ## 2026-07-09 — TODO-12 Fleet Management P1–P2 BUILT + MERGED + LIVE-E2E'D (full CRUD on the live stack)
 
 **Changes (merge-commit merged; red→green pairs on main):**
