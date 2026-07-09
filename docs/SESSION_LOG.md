@@ -130,6 +130,19 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-09 — TODO-12 Fleet Management P1–P2 BUILT + MERGED + LIVE-E2E'D (full CRUD on the live stack)
+
+**Changes (merge-commit merged; red→green pairs on main):**
+- `mras-ops` PR #50 → `main@bed089e` (26 commits, 205 tests) — fleet registry API: parent-scoped keyset lists for all 6 hierarchy types; `{object_type, identity, config, state}` details; 3-way indexed audit trail; `GET /unresolved-devices`; migration 028 (two partial audit indexes, **applied to dev; api rebuilt**); extended `PATCH /cameras` (legacy contract preserved) + `PATCH /displays` + `POST /cameras|/displays` (staged-offline birth, devices identity row minted in-txn, global screen_id dup = 409 string) + pure lifecycle matrix (retired terminal) + `POST /displays/adopt`. **Live checklist 14/14** (incl. EXPLAIN index proof; no-op PATCH journals nothing per I-1).
+- `godview-prototype` PR #9 → `main@92b1c03` (34 commits, 108 tests) — Fleet page (`/fleet`): lazy hierarchy tree; object drawer (Identity immutable / Config form / Lifecycle control / State + convergence honesty / History latest-20 across both audit event types); the app's FIRST write path (submit→PATCH→refetch, 422→field errors, 409→allowed-set/blockers, string-detail degrade); create forms; adopt-unresolved panel.
+- Follow-up minors grouped: mras-ops **#51** (7), godview **#10** (4).
+
+**Final-review catch worth remembering (fixed pre-merge, red→green):** the unkeyed ObjectDrawer — same-TYPE reselection reused form state, so Save could write camera A's config onto camera B (data-corruption vector on a first-ever write path). Fix = `key={type:id}` (+ regression test); companion fix: LifecycleControl rendered non-409 failures as fake "terminal" verdicts. **Lesson: any reusable form/drawer keyed by selection MUST remount on selection change; test same-type switches, not just cross-type.**
+
+**Live Playwright E2E (vite vs deployed :8080) — all green:** tree browse; camera renamed + `cam_index: 0` set via the typed field (**KEPT — real config the fleet launcher needs; camera is now "Demo Cam (built-in)"**); History shows only genuine changes; dup screen_id → "Rejected (screen_id already registered)."; create display born `offline`; offline→retired then retired→active → "Allowed from 'retired': none — terminal state." (genuine server verdict); **one-click ADOPT of kiosk display-2 worked end-to-end** (banner 3→2, devices row minted, full birth audit) — then restored byte-exact (adoption is the owner's inventory decision; it's now a button, not a psql session). Temp objects deleted; unresolved row re-inserted from snapshot.
+
+**State:** TODO-12 P1–P2 ✅ live. P3 (groups) / P4 (containers) spec'd-only, planned after owner feedback. Owner can now do the whole TODO-8/-11 device setup from the UI: name/cam_index/failover_eligible/roles/adopt. Open TODOs: 2, 3 (recon first), 11 (owner restart). Vision restart note unchanged: running process is pre-multicam until restarted.
+
 ## 2026-07-08 (f) — TODO-12 Fleet Management: SPEC + 2 PLANS (P1–P2), outside-reviewed, amended (spec/plan only — no implementation)
 
 **Changes (docs only):**

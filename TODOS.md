@@ -311,11 +311,22 @@ TDD with fake clock + asserted Play/Idle sequences, then live E2E.
 **Depends on:** owner decisions Q1/Q2; deferred follow-on: move-redistribution (composed clip
 follows a moving person to a new area without recompose)
 
-## TODO-12: God View Fleet Management page — hierarchy browser + full CRUD (owner-requested 2026-07-08) — 📐 SPEC'D + PLANNED (P1–P2; not implemented)
+## TODO-12: God View Fleet Management page — hierarchy browser + full CRUD (owner-requested 2026-07-08) — ✅ P1–P2 DONE (2026-07-09, built + merged + live-E2E'd)
 
-**Status (2026-07-08):** Spec + two implementation plans written, outside-reviewed on opus
+**Resolution (2026-07-09):** Built same-day from the reviewed plans. mras-ops PR #50 (`main@bed089e`,
+26 red→green commits, 205 tests; migration 028 applied; api rebuilt — 14/14 live checklist) +
+godview-prototype PR #9 (`main@92b1c03`, 34 red→green commits, 108 tests). Final review caught and
+fixed pre-merge: unkeyed drawer (same-type reselection could write A's config onto B) + fake
+"terminal" verdicts on non-409 errors. **Live Playwright E2E green end-to-end:** tree browsing,
+camera rename + cam_index (kept — real config), History showing only genuine changes (I-1), dup
+screen_id 409 rendered, staged-offline create, retire + terminal-409 wall, and one-click ADOPT of a
+seen kiosk (then restored — the real adoption is the owner's inventory call, now a button).
+Follow-up minors grouped in mras-ops + godview issues. **P3 (groups) / P4 (containers) remain
+spec'd-only** — plan after using P1/P2.
+
+**Prior status (2026-07-08):** Spec + two implementation plans written, outside-reviewed on opus
 ("proceed with amendments" — all folded in; cross-plan contract verified byte-level, zero Plan-B
-rework needed). Implementation NOT started (owner asked spec+plan only).
+rework needed).
 - Spec: `docs/superpowers/specs/2026-07-08-fleet-management-design.md` (15 locked decisions;
   CMDB/K8s/UniFi patterns: spec-vs-status, lifecycle-never-delete, staged-offline creation,
   adopt-unresolved, identity/config/state field classes, transition matrices, retire guardrails)
