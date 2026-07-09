@@ -311,7 +311,18 @@ TDD with fake clock + asserted Play/Idle sequences, then live E2E.
 **Depends on:** owner decisions Q1/Q2; deferred follow-on: move-redistribution (composed clip
 follows a moving person to a new area without recompose)
 
-## TODO-12: God View Fleet Management page — hierarchy browser + full CRUD (owner-requested 2026-07-08)
+## TODO-12: God View Fleet Management page — hierarchy browser + full CRUD (owner-requested 2026-07-08) — 📐 SPEC'D + PLANNED (P1–P2; not implemented)
+
+**Status (2026-07-08):** Spec + two implementation plans written, outside-reviewed on opus
+("proceed with amendments" — all folded in; cross-plan contract verified byte-level, zero Plan-B
+rework needed). Implementation NOT started (owner asked spec+plan only).
+- Spec: `docs/superpowers/specs/2026-07-08-fleet-management-design.md` (15 locked decisions;
+  CMDB/K8s/UniFi patterns: spec-vs-status, lifecycle-never-delete, staged-offline creation,
+  adopt-unresolved, identity/config/state field classes, transition matrices, retire guardrails)
+- Plan A (mras-ops registry API, 15 tasks): `docs/superpowers/plans/2026-07-08-fleet-plan-a-ops.md`
+- Plan B (godview Fleet page UI, 17 tasks): `docs/superpowers/plans/2026-07-08-fleet-plan-b-ui.md`
+Plans cover Phases 1–2 (hierarchy browser + device CRUD + adopt); P3 (groups) / P4 (containers)
+are spec'd, planned after P1/P2 owner feedback.
 
 **What (owner's words):** "some page where you can get to a list of all locations, and groups. This
 is where we might do all CRUD ops for device (camera, screen/kiosk, etc), a group, a location, etc.

@@ -130,6 +130,22 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-08 (f) — TODO-12 Fleet Management: SPEC + 2 PLANS (P1–P2), outside-reviewed, amended (spec/plan only — no implementation)
+
+**Changes (docs only):**
+- `docs/superpowers/specs/2026-07-08-fleet-management-design.md` — Fleet Management page design (owner: hierarchy list of locations/groups + full CRUD for devices/groups/locations with attribute editing). 15 locked decisions grounded in real-world systems: **spec-vs-status** (K8s) — config editable, state read-only; **lifecycle-never-delete** (CMDB) with transition matrices + retire-blocked-by-active-children guardrails; **staged creation** (UniFi/MDM) — new devices born `offline`, going live is explicit; **adopt-unresolved** (UniFi) — the 3 seen-but-unregistered kiosks become one-click registrations; identity/config/state field-class matrix per object type; audited `registry_admin` events + partial index; flat resource routes extending the PATCH /cameras template; keyset/parent-scoped everything.
+- `docs/superpowers/plans/2026-07-08-fleet-plan-a-ops.md` (15 TDD tasks) — registry read/write API (P1 reads + P2 device writes + adopt, droppable). Matched Plan B's assumed contract with 8 documented deltas.
+- `docs/superpowers/plans/2026-07-08-fleet-plan-b-ui.md` (17 TDD tasks) — Fleet page (lazy tree → drawer with Config/State/History; the app's FIRST write path: 422→field errors, 409→allowed-set/blockers, no optimistic updates).
+- TODOS.md — TODO-12 marked 📐 SPEC'D + PLANNED (P1–P2).
+
+**Learnings:**
+- **Plan-B-first + Plan-A-matches worked:** Plan A's planner died once (ECONNRESET); the retry could read Plan B's assumed contract (A1–A13/E1–E4) and match it byte-level — outside review confirmed "Plan B amendments required now: NONE" across all 8 deltas. Writing the consumer's assumed contract explicitly is a powerful reconciliation tool.
+- **Planner-caught schema facts** folded into the spec: `devices.system_id`/`name` NOT NULL (birth fallback), `screen_id` GLOBALLY UNIQUE (migration 020 → dup = 409 string), `unresolved_devices.event_id` + `UNIQUE(screen_id,kind)`, lat/lng `::float8`.
+- **Outside review (opus) Important:** journaled `changes` must filter `from==to` server-side or full-form submits flood the History panel with no-op diffs (I-1, now a spec invariant). Plus UI polish: string-detail error fallbacks; StatePanel convergence copy gated to device types.
+- `events.event_type` is plain text (016) — new event types need no enum change.
+
+**State:** TODO-12 ready to implement on "build it" (Plan A first, Plan B Task-0 reconcile then UI; adopt tasks droppable). P3 (groups) / P4 (containers) spec'd, deliberately planned after P1/P2 feedback. Open TODOs: 2, 3 (recon first), 11 (owner restart), 12 (ready).
+
 ## 2026-07-08 (e) — TODO-8 multi-camera BUILT + MERGED + LIVE-DRILLED (failover 16.1s, 14/14 PASS)
 
 **Changes (merge-commit merged; red→green pairs preserved on main):**
