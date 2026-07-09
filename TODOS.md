@@ -311,6 +311,38 @@ TDD with fake clock + asserted Play/Idle sequences, then live E2E.
 **Depends on:** owner decisions Q1/Q2; deferred follow-on: move-redistribution (composed clip
 follows a moving person to a new area without recompose)
 
+## TODO-12: God View Fleet Management page — hierarchy browser + full CRUD (owner-requested 2026-07-08)
+
+**What (owner's words):** "some page where you can get to a list of all locations, and groups. This
+is where we might do all CRUD ops for device (camera, screen/kiosk, etc), a group, a location, etc.
+Here we might set or alter several attributes for each object type (CRUD)." Distinct from the
+planned globe/map view.
+
+**Why:** Today the only admin write surface is `PATCH /cameras/{id}` (role/status/failover_eligible)
+— everything else (create camera, any display/kiosk edit, screen_groups, locations, systems, orgs)
+is raw SQL. TODO-8's owner steps (register camera, set cam_index, flip failover_eligible) should be
+buttons, not curl.
+
+**Current building blocks:** clean-slate 21-table registry schema (orgs→locations→systems→
+screen_groups→cameras/displays); God View systems drill-down already renders groups + devices with
+role/duty; the `PATCH /cameras` pattern (strict pydantic, identity fields unwritable, audited
+`camera_admin` journal events in-transaction) is the template for all write endpoints.
+
+**Design notes to carry into the spec (from the TODO-8 lane):**
+- Identity vs config: `id`/`name`-class identity immutable via API where identity matters (cameras);
+  clarify per object type which fields are identity vs editable.
+- Prefer lifecycle transitions (`status='retired'`) over hard DELETE — journal-friendly, reversible;
+  hard delete only where rows are meaningless (unused screen_group?). Decide per type in the spec.
+- Every write audited as journal events (the `camera_admin` precedent).
+- UI: God View prototype gets a "Fleet" page — hierarchy tree/list + per-object edit forms; follow
+  the established godview pattern (server bounds data, client selectors shape it).
+- Camera writes must respect TODO-8 semantics (role changes converge via poll; duty is read-only).
+
+**Effort:** L (spans mras-ops write API + godview-prototype UI; spec should phase it: read-only
+browser → device CRUD → group/location CRUD)
+**Priority:** P1-P2 — owner-requested; sequence vs globe view is the owner's call
+**Depends on:** nothing hard; benefits from TODO-8 (done)
+
 ## TODO-11: Vision restart + live E2E of the Redis-shared cooldown (owner step)
 
 **What:** Restart native vision so it picks up `REDIS_URL=redis://127.0.0.1:6379/0` (added to
