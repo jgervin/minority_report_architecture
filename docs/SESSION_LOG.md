@@ -130,6 +130,54 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-12 (c) — Globe v2 LANE 1 SHIPPED (retailer network): spec outside-reviewed, Plans C–F gate-checked, both Lane-1 plans built + merged + live-E2E'd
+
+**Changes:**
+- Spec + plans: `minority_report_architecture` PR #49 → `main@af63c9d` — v2 spec outside-reviewed
+  (fable, fresh context: SOUND WITH AMENDMENTS, all 11 applied — 4 CRITICAL: generator org-SET
+  retargeting, teardown `organization_relationships` + 28-predicate census, seed idempotent-UPDATE
+  split, pulse camera-attribution heuristic + additive `display_id`/`last_run_created_at`) +
+  Plans C–F written by grounded read-only planners and gate-checked field-by-field (PASS WITH 18
+  FIXES: Plan F's export-name drift to Plan D's `buildOrgChains`/`OrgArcDatum`, `screen_id`
+  `string|null` convention, E/F datumCache collision, chip-count ≥5, E's snippets gain D's props).
+- **Plan C (mras-ops) PR #56 → `main@48f7096`** (11 commits, 5 red→green pairs + chore; closes #55):
+  seed v2 (4 retailer orgs `dea00000-…0002–0005` type 'host' under the umbrella via
+  `organization_relationships` + `parent_organization_id`; explicit idempotent `UPDATE` reassigns
+  all 45 systems off the umbrella — `ON CONFLICT DO NOTHING` can't reassign; 3 same-city venues:
+  Hudson Yards/Battersea/Emirates), teardown v2 (org-id SET across all 28 predicates,
+  relationships-before-orgs, retailers-before-umbrella), `demo_traffic` org-SET targeting with
+  **per-target org stamping** (projector back-stamps from the system row — umbrella-stamping would
+  violate the identity invariant), `/god-view/map` additive `org` (dominant-by-system-count via
+  `DISTINCT ON`, tie-break `count DESC, organization_id ASC`) + unwindowed `rollup.last_run_created_at`,
+  panel `ad_runs[].display_id`. **Live drill 24/24 PASS** (0 skips, 0 org mismatches on 135 events,
+  teardown zero-rows, cursor intact, re-seeded v2). Follow-up: #57 (teardown never deletes demo
+  `unresolved_devices` rows — pre-existing v1 gap).
+- **Plan D (godview-prototype) PR #15 → `main@85938cd`** (10 commits, 4 red→green pairs + typing
+  + tie-coverage): `topologySelectors.ts` (org grouping incl. coordless venues for chips; greedy
+  NN chains w/ 6 determinism rules; ORG_PALETTE; arc dim/lit accessors; mid-zoom labels w/
+  1.4→2.0 fade), OrgChips legend, GlobeCanvas identity-diffed `arcsData`/`labelsData` +
+  `highlightRef` restyle (same-datum re-set = dash phase survives), Globe page highlight wiring
+  (dot/rail/chip light; background/re-click clear; panel-close keeps highlight — intentional).
+  **Live Playwright E2E 10/10 PASS** incl. two novel mechanism checks: dash-sweep continuity
+  across a poll tick (measured, no phase restart — the identity-diff discipline proven on an
+  ANIMATING layer) and dot-click no-double-fire vs `onGlobeClick`. Follow-ups: #16 (onArcClick),
+  #12 comment (chips a11y).
+
+**Learnings:**
+- **Cheapest-tier implementers skip workspace discipline**: a haiku subagent applied its task to
+  the MAIN checkout instead of the worktree (caught by controller mtime/grep check before commit;
+  ported + main reverted). Floor for repo-touching implementers = sonnet, and every dispatch now
+  opens with a mandatory cd-worktree + pwd lock step.
+- The api container serves MAIN's code — endpoint tests that hit the running container see old
+  code; in-process ASGI tests (throwaway projector-test DB) are the safe pattern (C-T4/T5 used it).
+- v1's "1 warning"-style suite anomalies: bare `pytest -q` from mras-ops root hits a pre-existing
+  collection issue; canonical invocation is `pytest tests/ -q` from `api/` (228-count parity proven).
+
+**State:** Lane 1 LIVE end-to-end: dev DB seeded v2 (17 venues incl. Demo Store, 4 retailers +
+Demo Org chips), api rebuilt from main@48f7096, owner's :5173 dev server serves merged main (no
+new npm deps — no reinstall needed). Next: Lane 2 (Plan E anchored explosion), then Lane 3 (Plan F
+pulse). SDD ledger current through Lane 1.
+
 ## 2026-07-12 (b) — Globe v2 "Living Topology" SPEC'd + owner-approved; HANDOFF to fresh session for the build
 
 **Changes:**
