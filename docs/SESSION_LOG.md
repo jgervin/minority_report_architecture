@@ -130,6 +130,24 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-12 — God View GLOBE built + merged + LIVE-E2E'd (both plans, same session as TODO-2)
+
+**Changes:**
+- Spec + plans: `minority_report_architecture` PR #46 → `main@8c8c655` — owner-approved design (`docs/superpowers/specs/2026-07-11-globe-view-design.md`, outside-reviewed: 11 amendments) + gate-checked Plans A/B (cross-plan `/god-view/map` contract verified 17/17 fields; caught a real `composing`/`composing_count` key drift between planners).
+- **Plan A (mras-ops) PR #53 → `main@3bf19f0`** (12 commits, 6 red→green pairs): `db/seed/seed_demo_fleet.sql` + FK-cycle-aware `teardown_demo_fleet.sql` (demo org `dea00000-…001` = the scoping tag; 13 venues/38 systems, deterministic md5 ids, `demo-` screen_id namespace); `GET /god-view/map` (ONE set-based CTE rollup; keys `composing_count`/`playing_count`) + `GET /god-view/map/locations/{id}` in `api/src/godview/map.py`; `scripts/demo_traffic.py` (journal-only generator, org/system/location stamped at insert, hard-exits if org absent, ≥3s beats). **Live drill PASS**: 14 venues, pulses via endpoint, **0 projector.skips**, teardown 12/12 zero-rows w/ cursor + Demo Store lat/lng intact. Drill caught 1 real bug (drain-loop `Set changed size during iteration`) — fixed red→green pre-merge. Polish → mras-ops #54.
+- **Plan B (godview-prototype) PR #13 → `main@62b688a`** (~20 commits, red→green pairs): `/globe` page — globe.gl@2.46.1 (dynamic import behind `hasWebGL` guard, chunk-load-failure fallback, local NASA textures in `src/assets/globe/`), pure selectors (health/live encodings, semantic city clustering, escapeHtml'd tooltips), GlobeCanvas (diff-not-reinit, stable datum identity), ModeLegend, VenueRail, keyed VenuePanel (AsyncState+retry), Shell nav + `/systems/:systemId?` deep link. 163 tests + tsc + build + oxlint baseline clean; globe.gl code-splits to a 525KB-gz async chunk. **Live Playwright E2E PASS** (real WebGL globe, canvas identity across 8 poll cycles, deep links, mobile 390px, 0 console errors; 4 screenshots delivered to owner). Fast-follows filed in godview issues + a11y notes on #12.
+- Follow-up issues: mras-ops #54 (Plan A polish), mras-ops #55 (same-city seed venues → live clustering), godview #14 (globe fast-follows), a11y additions commented on godview #12.
+
+**Learnings:**
+- **Compose `-f`/project-dir path resolution bit twice**: running `docker compose -p mras-ops up` from a WORKTREE recreates services with worktree bind-mount paths — after the worktree is deleted those mounts dangle. Always re-up from `/Users/jn/code/mras-ops` after worktree-based container drills (done; stack healthy from main paths).
+- **The live seed cannot exercise clustering**: all 14 venues are in distinct cities, so the globe's semantic-zoom clustering never triggers live (unit-tested only; fixtures have 2 Dallas venues). Filed to add same-city seed venues.
+- Generator/teardown race fails CLOSED: `events.organization_id` FK means teardown deleting the org makes any straggling generator INSERT error out rather than write unscoped rows.
+- globe.gl 2.46.1 uses the modern `new Globe(el, opts)` constructor; jsdom safety = dynamic import inside the ref-mount effect behind the WebGL guard + a throwing `vi.mock` tripwire; a **missing `.catch` on a code-split dynamic import silently re-opens the blank-canvas failure** the guard exists to prevent (final review caught it; fixed pre-merge).
+- Ring pulse phase resets each poll (fresh ringsData objects) — points got identity-stable datums, rings didn't; needs a visual check before deciding (godview fast-follow).
+- Playwright MCP headless Chromium rendered real WebGL with no special flags (SwiftShader fallback unneeded).
+
+**State:** Globe is LIVE end-to-end on the dev stack: `docker compose up` (mras-ops) + `npm run dev` in godview-prototype (restarted from main) → http://localhost:5173/globe; demo fleet seeded (14 venues); pulses on demand via `python3 -m scripts.demo_traffic --rate 10 --duration 300` from mras-ops. Teardown when done: `docker exec -i mras-ops-postgres-1 psql -U mras -d mras < db/seed/teardown_demo_fleet.sql`. Open: TODO-11 (owner), Fleet P3/P4 + polish issues, globe fast-follows.
+
 ## 2026-07-11 — TODO-2 AWS GPU rental profile BUILT + MERGED (dry-run-verified; the first real launch is the live E2E)
 
 **Changes:**
