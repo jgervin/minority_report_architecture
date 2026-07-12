@@ -37,7 +37,23 @@ Phase 0 local dev still works without Redis.
 
 ---
 
-## TODO-2: AWS GPU Rental Profile (Phase 1)
+## TODO-2: AWS GPU Rental Profile (Phase 1) — ✅ DONE (built 2026-07-11; mras-ops PR #52; dry-run-verified)
+
+**Resolution:** `infra/aws/` in mras-ops (PR #52 → `main@8a5ad10`, red→green TDD):
+`launch.sh` — newest DLAMI Base GPU (Ubuntu 22.04) AMI lookup (driver + Docker + NVIDIA container
+toolkit preinstalled), `mras-venue` security group scoped to `ALLOW_CIDR` (`0.0.0.0/0` refused;
+opens only 22/8001/8002/8080/3000), gp3 100GB DeleteOnTermination, `SPOT=1` toggle
+(one-time/terminate), double-launch guard on tag `mras:managed=true`, `DRY_RUN=1` prints every
+mutating command. `teardown.sh` — uptime + est cost (@ $0.526/hr), confirm/`FORCE=1`, terminate +
+wait, unattached-EBS audit. `docker-compose.aws.yml` — vision-only override: `tensorflow[and-cuda]`
+build (plain Linux TF wheels can't see the GPU) + NVIDIA device reservation; on Linux vision runs
+in Docker (`--profile docker-vision`). README — cost ≈$3 per 4-hr event on-demand (≈$1.30–1.80
+spot; on-demand recommended for paid events), enrolled-data transfer (Qdrant snapshot + pg_dump
+`subject_profiles`), secrets via explicit scp only (rsync excludes `.env`).
+**Not live-verified — no AWS account/quota available**; verified via 10 pytest DRY_RUN-contract
+tests against a fake `aws` CLI, `docker compose config`, and shellcheck. The first real launch is
+the live E2E (README runbook). **Known gap:** vision has no RTSP/`stream_url` ingest, so the cloud
+box gets no venue camera feed yet — filed **mras-vision#38**; the box is fully exercisable via API.
 
 **What:** Define a reproducible AWS launch profile for Phase 1 multi-camera venue events
 using a GPU instance (g4dn.xlarge, $0.526/hr).

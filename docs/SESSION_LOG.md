@@ -130,6 +130,22 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-11 — TODO-2 AWS GPU rental profile BUILT + MERGED (dry-run-verified; the first real launch is the live E2E)
+
+**Changes:**
+- `mras-ops` PR #52 → `main@8a5ad10` (red→green preserved: `e1ce7d3` red → `5e34f1d` green → `116f8a0` red → `8b20fbe` green) — new `infra/aws/`: `launch.sh` (DLAMI Base GPU Ubuntu 22.04 AMI lookup, `mras-venue` SG scoped to `ALLOW_CIDR` with `0.0.0.0/0` refused, gp3 100GB, `SPOT=1` toggle, double-launch guard on tag `mras:managed=true`, `DRY_RUN`), `teardown.sh` (uptime + est cost, confirm, terminate + wait, unattached-EBS audit), `docker-compose.aws.yml` (vision-only CUDA override), `README.md` (cost ≈$3 per 4-hr event on-demand / ≈$1.30–1.80 spot; enrolled-data transfer = Qdrant snapshot + `pg_dump subject_profiles`; secrets via explicit scp only), `tests/test_aws_profile.py` (10 tests).
+- `mras-vision` issue **#38** filed: RTSP/`stream_url` camera ingest — vision only captures via local `cv2.VideoCapture(cam_index)`, so the cloud box gets no venue camera feed until that lands (deliberately out of TODO-2 scope; box fully exercisable via API — `/enroll`, `/health`, trigger pipeline).
+- `TODOS.md` marks TODO-2 ✅ (this repo).
+
+**Learnings:**
+- **Compose resolves relative paths in additional `-f` files against the PROJECT directory** (the first `-f` file's dir), NOT the override file's dir. Review caught the override's `../../../mras-vision` build context breaking the first real `up --build` on a billing instance; correct value is `../mras-vision`, same as the base file. The compose-config test now asserts the resolved context.
+- Plain `tensorflow` pip wheels on Linux ship **no CUDA runtime** — DeepFace/ArcFace would silently run on CPU on the T4. The AWS override build adds `tensorflow[and-cuda]`; torch (via ultralytics) bundles CUDA already. Related: `DEEPFACE_BACKEND` is declared in compose/.env.example but **no code reads it** — TF/torch auto-detect.
+- Testing infra you can't run: a fake `aws` on PATH that **exits non-zero on any unexpected mutating call** + a `DRY_RUN` contract in the scripts gives real regression protection without an account (9 red → green, then 2 more red → green for the review findings).
+- The "Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04)" ships driver + Docker + nvidia-container-toolkit, so user-data stays a tiny compose-plugin check instead of a driver install.
+- Pre-existing, unrelated: `tests/test_purge.py` fails on mras-ops main too (host python lacks `qdrant_client`).
+
+**State:** TODO-2 done — honestly **not live-verified** (no AWS account/quota in this environment; the README states this and doubles as the owner's first-launch runbook). Open: TODO-11 (owner, ~5 min), Fleet P3/P4 + globe/map (on owner's word), polish issues (ops #51, godview #10/#12, vision #33–38, composer #44).
+
 ## 2026-07-09 (c) — God View MOBILE-RESPONSIVE (owner away from computer; Playwright-verified, screenshots delivered)
 
 **Changes:**
