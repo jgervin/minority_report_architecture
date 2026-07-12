@@ -130,6 +130,32 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-12 (b) — Globe v2 "Living Topology" SPEC'd + owner-approved; HANDOFF to fresh session for the build
+
+**Changes:**
+- `docs/superpowers/specs/2026-07-12-globe-v2-topology-design.md` — owner-approved v2 design
+  (spec only; NOT yet outside-reviewed): three lanes — (1) retailer network: seed v2 with 3–4
+  retailer orgs under the demo umbrella + same-city venues (folds mras-ops #55), additive `org`
+  field on `/god-view/map`, org arcs w/ click-to-light + org chips + labels; (2) anchored
+  explosion: venue → system ring → cameras/screens at the geo anchor (ONE venue at a time),
+  DB-relationship connectors, octagon hull, DOM labels, per-node right panel keyed `${type}:${id}`;
+  (3) poll-delta recognition pulse (green/rainbow traveling connector animation; folds godview #14
+  ring-identity fix). Owner decisions locked: anchored explosion / poll-based (~2–7s lag accepted,
+  no SSE) / split-venues retailer seed / all three lanes in order.
+- `docs/handoff-05-globe-v2-build-2026-07-12.md` — next-session briefing (state, task, process,
+  ground-truth pointers, first moves).
+- Post-merge fix on the owner's machine: `npm install` in the godview-prototype MAIN checkout
+  (globe.gl was only installed in the deleted worktree — dev server couldn't resolve it).
+
+**Learnings:**
+- **Worktree npm installs don't carry to the main checkout post-merge** — always `npm install`
+  on main after merging a dep-adding branch. An SPA route answering HTTP 200 proves nothing about
+  the module graph; verify with `vite build` or a real browser load.
+
+**State:** Globe v1 live (14 seeded venues, generator on demand). Next session: outside review of
+the v2 spec → Plans C–F → gate-check → SDD execution lane by lane (Lane 1 first). gstack
+context-save run at handoff; new session should `/context-restore`.
+
 ## 2026-07-12 — God View GLOBE built + merged + LIVE-E2E'd (both plans, same session as TODO-2)
 
 **Changes:**
