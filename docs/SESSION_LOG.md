@@ -130,6 +130,43 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-12 (d) — Globe v2 LANE 2 SHIPPED (anchored explosion): Plan E built + merged + live-E2E'd 12/12
+
+**Changes:**
+- **Plan E (godview-prototype) PR #17 → `main@2a6c0b3`** (20 commits: 1 dep pin + 7 red→green
+  pairs + 2 review-fix + 1 final-review-fix + 1 tuning pair): `three@0.185.1` direct pin;
+  `MapSystemDevice.screen_id`/`MapSystem.system_type` typing; pure `explodeSelectors.ts`
+  (one-venue rule, cos(lat)-corrected radial ring + device fan, octagon hull,
+  `ExplodedNode`/`ExplodedConnector` = Plan F's contract); `datumCache.diffDatums` +
+  `onPovChange` widening; GlobeCanvas explosion layers (`objectsData` nodes,
+  `customLayerData` connectors+hull, `htmlElementsData` labels — dynamic three import behind
+  the WebGL guard, dispose verified against pinned three-globe source); `useVenueDetailPoll`
+  (panel-independent, A→B stale-drop tested); NodePanel (camera duty via `fetchObjectDetail`,
+  AsyncState+retry); Globe page wiring (PanelSel keyed `${type}:${id}`, close-on-unexplode);
+  sprite-label suppression for the exploded venue (E2E tuning). **Live Playwright E2E 12/12
+  PASS**, 0 console errors. Follow-ups: godview #18 (through-globe hitbox clicks), #19
+  (three.d.ts wildcard typing), #20 (pov re-render damping).
+- **Two plan-doc errata found during execution** (to be amended in the close-out docs PR):
+  Plan E's `explodedVenueId` example expected `loc_dal_north` but its own formula makes
+  `loc_dal_gal` strictly nearer (0.00518 vs 0.01) — formula is spec, code follows it; and the
+  Task 8 memo sketch guarded only `lat` where `explodeVenue`'s contract requires lat AND lng.
+
+**Learnings:**
+- **Wrong-checkout edits are the dominant subagent failure mode** (4 incidents this session, 1
+  not self-caught): briefs cite canonical repo paths and implementers drift back to them
+  mid-task. Mitigations that work: mandatory cd+pwd lock as dispatch step 1, "bare repo path =
+  READ-ONLY reference" rule, and a controller existence-check before EVERY commit dispatch.
+- The always-on ~118fps idle render loop is globe.gl's WebGL loop, not React churn —
+  interactions stay instant; React-side pov damping is a nicety (issue #20), not a fix.
+- Post-merge, the owner's main-checkout vite dev server crashed on node_modules churn from
+  `npm install` (three became a direct dep) — restarted clean. Extends the known
+  worktree-npm-install gotcha: after a dep-adding merge, expect to bounce the dev server too.
+
+**State:** Lanes 1+2 LIVE on the dev stack (:5173 serves merged main; explosion demo:
+rail-click a venue → ring at 0.72 → zoom below 0.35 for the device fan). Next: Lane 3 —
+Plan F recognition pulse (poll-delta engine, traveling pulse, rings-identity fix folding
+godview #14 item 1). SDD ledger current through Lane 2.
+
 ## 2026-07-12 (c) — Globe v2 LANE 1 SHIPPED (retailer network): spec outside-reviewed, Plans C–F gate-checked, both Lane-1 plans built + merged + live-E2E'd
 
 **Changes:**
