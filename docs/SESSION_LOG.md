@@ -130,6 +130,49 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-13 (a) — Flat Map v3 PLANNING COMPLETE: spec outside-reviewed + amended, Plans G/H written + gate-checked (build-ready)
+
+**Changes (docs-only this entry; no code yet — all in `minority_report_architecture`):**
+- **Outside review of the v3 spec** (fresh-context strongest model, grounded against real
+  godview-prototype code): `docs/superpowers/specs/2026-07-13-flatmap-v3-outside-review.md` —
+  verdict PROCEED-WITH-AMENDMENTS (2 BLOCKING · 6 IMPORTANT · 4 MINOR). All 12 folded into the spec.
+- **Two blockers the review caught** (both changed the build): (1) the god-view map-location
+  endpoint exposes **NO per-device lat/lng** (`MapSystemDevice` has none; `cameras`/`displays` tables
+  have no coord columns — only the unexposed `devices` table does) → building-level layout is
+  **deterministic-fallback-ONLY** in v3; real per-device positioning is a future additive backend
+  lane. (2) The two-WebGL mitigation "pause the mini globe" had **no seam** — `GlobeCanvas`
+  `autoRotate=false` stops spin not render → Plan G adds a `paused?: boolean` prop calling globe.gl
+  `pauseAnimation()`/`resumeAnimation()`.
+- **Plans G (11 tasks) + H (8 tasks)** written by read-only planners in the v2 house format:
+  `docs/superpowers/plans/2026-07-13-flatmap-g-map-shell.md` (Mapbox island + dark style from
+  Tailwind hexes + `/map` route + corner globe w/ `paused` + staged flyTo + zoom-semantic venue
+  layer; AUTHORS the shared contracts) and `…-flatmap-h-building-topology.md` (building 2D
+  glyphs/cards + NEW Mapbox pulse renderer, panels-first).
+- **G/H gate-check** (`…-flatmap-gh-gate-check.md`): locked contract A–E verified byte-clean vs real
+  code; verdict BLOCK → **RESOLVED** — 5 findings fixed in the plans: (1) unified island dir to
+  `src/components/flatmap/` (Plan H had `map/` → `import("./mapPulseLayer")` wouldn't resolve);
+  (2) added page-owned `selectedVenueId` to Plan G (Plan H's building tier had no input); (3) dropped
+  Plan G's speculative `useFlatMap()`/`children` seam — both sides now props+effects (Plan-F pattern);
+  (4) `orgColors?` into the props interface; (5) extraction span `78-90`.
+
+**Learnings:**
+- **Locked the G→H contract MYSELF before parallel planning** (`paused` prop, `mapTier(zoom)`,
+  `MapNode`/`buildingLayout`, token/WebGL fallback seam, reused-vs-new pulse split) so both plans
+  aligned by construction; the gate-check then only had to catch integration drift (dir + selection
+  state), not contract drift. Worked — contract A–E was byte-clean.
+- `MapNode{…,altitude:0}` satisfies `deepPulsePath`'s `Pick<ExplodedNode,…>` (same `type` union,
+  `0`→`number`, array so no excess-prop check) — flat-map fallback nodes feed the reused deep-pulse
+  engine directly.
+- globe.gl 2.46.1 pause API confirmed: `pauseAnimation()`/`resumeAnimation()` (`globe.gl.d.ts:115-116`).
+- App theme hexes for the Mapbox dark style live in `godview-prototype/tailwind.config.ts`
+  (bg #0a0d12, elev #12161d, sidebar #0d1016, border #212734, dim #8b93a3, accent #45c4ff, +status).
+
+**State:** Planning done, plans BUILD-READY. Next: build **Plan G first** (frontend-only,
+godview-prototype; proceeds against the graceful no-token fallback), then Plan H on merged G. **Owner
+long-lead items before Plan G's live E2E:** create `VITE_MAPBOX_TOKEN` (Mapbox free tier), and drop
+the 3 reference screenshots into `godview-prototype/dashboard_images_ideas/`. godview-prototype `main`
+clean at `468745e`. Generator for pulse E2E: `python3 -m scripts.demo_traffic --rate 10 --duration 600`.
+
 ## 2026-07-12 (f) — Owner live review: candy-cane arc tuning SHIPPED; Flat Map v3 spec'd + handed off
 
 **Changes:**
