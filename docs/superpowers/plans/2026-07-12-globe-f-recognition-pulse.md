@@ -834,6 +834,7 @@ farPulses: { seq: number; venues: FarPulse[]; sweepArcs: OrgArcDatum[] } | null;
   re-render safe); all `setTimeout` ids go into a `timersRef` Set cleared on unmount; active
   pulse/sweep datums live in island refs and are re-merged through `upsertDatums` so their
   identity holds for their whole lifetime.
+  [ERRATUM 2026-07-12: as-built uses key-scoped removals per batch instead of clearing timers on supersede — final review adjudicated this strictly better than the literal wording (clearing would leak the old batch's datums). Do not "fix" the code to match this sentence.]
 
 **Steps**
 

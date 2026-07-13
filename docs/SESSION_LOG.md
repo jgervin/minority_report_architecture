@@ -130,6 +130,49 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-12 (e) — Globe v2 COMPLETE: Lane 3 SHIPPED (recognition pulse + rings fix) — all three lanes live
+
+**Changes:**
+- **Plan F (godview-prototype) PR #21 → `main@a56d7af`** (15 commits, 7 red→green pairs):
+  rings-identity fix via `upsertDatums` + role-keyed ring ids — **fixes godview #14 item 1**
+  (pulse phase survives polls, live-verified across 4+ poll boundaries; issue commented);
+  pure delta engines (`diffFarPulses` — `last_run_created_at` advance w/ anti-storm null rule,
+  `playing_count` fallback; `diffDeepPulses` — ad_run status transitions, venue-switch guard,
+  per-path coalescing, spec-locked camera attribution matching demo_traffic's pick);
+  `usePollDelta` (strict-consecutive invariant, mutation-test-proven; prevRef null-reset kills
+  ghost batches on re-explode — final-review I-1); one-shot far pulses (temporary ring/sweep
+  datums, dashLength+dashGap=2 single-dash, timer lifecycle); deep traveling pulse (dynamic
+  `pulseLayer.ts`, Line2 `dashOffset` — core LineDashedMaterial lacks it — camera flash,
+  single rAF loop, dispose on all exit paths, own lazy chunk). **Live E2E 14/14 PASS** with
+  `demo_traffic` (361 sequences, ~43 min): pulses 2–7 s after generator lines, dash direction
+  verified forward, 0 console errors incl. fault injection. Polish → godview **#22**
+  (ring-constant invariant test, lint snapshot, dash duty-cycle + Health-tone styling,
+  mode-gating decision — the last two are owner-judgment calls with screenshots delivered).
+- **Globe v2 is COMPLETE**: Lane 1 (mras-ops #56 @48f7096 + godview #15 @85938cd), Lane 2
+  (godview #17 @2a6c0b3), Lane 3 (godview #21 @a56d7af). Docs: spec+plans PR #49, Lane 1 log
+  PR #50, Lane 2 log PR #51, this entry + three plan errata in the close-out PR.
+
+**Learnings:**
+- **Mutation-test the invariant tests**: a reviewer proved a "StrictMode" test was VACUOUS
+  (React 19.2 + RTL never double-invokes effects in this harness — the test passed with the
+  guard deleted). The replacement standard, used for the rest of the session: every
+  lifecycle-invariant test carries a discriminates-proof (fails under the targeted mutation).
+  Same standard retroactively probe-verified F-T6's alongside-written tests (4/4 discriminated).
+- **The best cross-cutting find lived BETWEEN two hooks**: `usePollDelta` kept `prevRef` across
+  `useVenueDetailPoll`'s null gap → ghost pulse batch on re-explode of the same venue (the
+  demo's natural zoom-out/zoom-in gesture). No task-scoped review could see it; the whole-branch
+  final review did. Fix: clear prev on null (red→green, live-E2E-proven with real collapsed-window traffic).
+- Three plan errata discovered by execution (all doc-side, code correct): Plan E's
+  explodedVenueId example (planner arithmetic — formula is spec), Plan E's lat-only memo guard,
+  Plan F's supersede-timer wording (as-built key-scoped removals are strictly better).
+
+**State:** Globe v2 fully LIVE on the dev stack — :5173 serves merged main. Demo recipe:
+`python3 -m scripts.demo_traffic --rate 10 --duration 300` from `/Users/jn/code/mras-ops`, watch
+far-zoom pulses + org-arc sweeps; rail-click a venue → explosion; recognition pulses travel
+camera→system→display at deep zoom. Rainbow mode: flip `PULSE_RAINBOW` in
+`src/data/pulseDelta.ts` (one line). Open follow-ups: godview #16 #18 #19 #20 #22, #12 (a11y),
+#14 (remaining items), mras-ops #54 #57, mras-vision #38. TODO-11 still the owner's 5-min step.
+
 ## 2026-07-12 (d) — Globe v2 LANE 2 SHIPPED (anchored explosion): Plan E built + merged + live-E2E'd 12/12
 
 **Changes:**
