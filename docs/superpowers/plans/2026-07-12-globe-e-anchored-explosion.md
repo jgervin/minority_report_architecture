@@ -213,7 +213,8 @@ describe("explodedVenueId — exactly one venue, selected or nearest camera cent
   });
   it("no selection -> nearest plottable venue to the camera center", () => {
     expect(explodedVenueId(venues, pov(52.4, 13.3, 0.5), null)).toBe("loc_berlin");
-    expect(explodedVenueId(venues, pov(33.0, -96.8, 0.5), null)).toBe("loc_dal_north");
+    // [ERRATUM 2026-07-12: original expected loc_dal_north — planner arithmetic error; the formula is the spec and loc_dal_gal is strictly nearer (0.00518 vs 0.01). Shipped code follows the formula.]
+    expect(explodedVenueId(venues, pov(33.0, -96.8, 0.5), null)).toBe("loc_dal_gal");
   });
   it("a selected venue without coords falls back to nearest", () => {
     expect(explodedVenueId(venues, pov(52.4, 13.3, 0.5), "loc_nocoords")).toBe("loc_berlin");
@@ -628,7 +629,8 @@ type PanelSel = { type: "venue" | "system" | "camera" | "display"; id: string; v
 // selectedVenueId = panel?.venueId ?? null           (any open panel pins its venue as "selected")
 // explodedId = explodedVenueId(venues, pov, selectedVenueId)     — memoized
 // { detail } = useVenueDetailPoll(explodedId)
-// explosion = useMemo: explodedId && detail?.location.id === explodedId && detail.location.lat != null
+// [ERRATUM 2026-07-12: guard must check lat AND lng (final-review I1); lat-only feeds NaN geometry. Shipped code checks both.]
+// explosion = useMemo: explodedId && detail?.location.id === explodedId && detail.location.lat != null && detail.location.lng != null
 //   ? explodeVenue(detail, explosionTier(pov.altitude) === 2 ? 2 : 1) : null
 // liveSystems = useMemo(() => detail ? liveSystemIds(detail) : new Set(), [detail])
 ```
