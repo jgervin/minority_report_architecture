@@ -113,6 +113,7 @@ Plan G consumes: `location_id, name, lat, lng, city, country` (venue markers + r
 **Files:**
 - Modify: `/Users/jn/code/godview-prototype/package.json` (+ lockfile) — add `"mapbox-gl"` (exact pin) to `dependencies`.
 - Modify: `/Users/jn/code/godview-prototype/.env.example` — add `VITE_MAPBOX_TOKEN`.
+- Modify: `/Users/jn/code/godview-prototype/.gitignore` — ignore real env files (**the token is a secret and MUST NOT be committed**; `.env` is currently NOT ignored and the repo has no `.env` yet).
 
 **Interfaces:** none (infra task; verified by install + build, not a TDD pair).
 
@@ -129,6 +130,7 @@ Plan G consumes: `location_id, name, lat, lng, city, country` (venue markers + r
   VITE_MAPBOX_TOKEN=
   ```
   (No `src/vite-env.d.ts` change needed: `tsconfig.app.json:10` already includes `"vite/client"`, so `import.meta.env.VITE_MAPBOX_TOKEN` typechecks exactly as the existing `import.meta.env.VITE_OPS_API_URL` at `api.ts:10`.)
+- [ ] **Gitignore real env files** (secret safety): append `.env` and `.env.local` to `/Users/jn/code/godview-prototype/.gitignore` if not already covered (only `.env.example` is committed; `.env` holds the real `VITE_MAPBOX_TOKEN` and must never be staged). Verify with `git check-ignore .env` (git-flow-manager) → prints `.env`.
 - [ ] Verify: `npm run build` still succeeds (mapbox-gl added but unimported → not yet in any chunk).
 - [ ] Commit via git-flow-manager: `chore(flatmap): add mapbox-gl@<version> (exact pin) + VITE_MAPBOX_TOKEN env doc for the /map command shell`
 
