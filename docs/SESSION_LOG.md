@@ -130,6 +130,29 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-12 (f) — Owner live review: candy-cane arc tuning SHIPPED; Flat Map v3 spec'd + handed off
+
+**Changes:**
+- Owner watched the live v2 demo (3 generator bursts) and gave direction: (1) arc streaks too
+  fast → **candy-cane tuning shipped same night** (godview-prototype): lit-loop + sweep dash
+  0.12/0.12 (~4 stripes/arc), 6000ms crawl, `SWEEP_MS` 4500 removal decoupled from crawl speed;
+  red→green pair, 270/270, live visual check PASS (frames 2s apart show ~1/4-period shift;
+  sweep one-shot preserved). Addresses #22's dash-styling item.
+- (2) **Flat Map v3 directed and spec'd**:
+  `docs/superpowers/specs/2026-07-13-flatmap-v3-design.md` — new `/map` view, dark style
+  matching owner reference images, **corner mini-globe with v1 dots-only semantics** driving
+  flat-map fly-to (country→city→building), building-zoom topology as **2D glyphs + anchored
+  cards** (not the globe's sphere nodes). Owner decisions LOCKED: keep both surfaces (globe
+  explosion untouched), **Mapbox GL JS** (`VITE_MAPBOX_TOKEN`, owner to create token before
+  live E2E), build in a fresh session. Handoff:
+  `docs/handoff-06-flatmap-v3-build-2026-07-13.md` (process = v2 precedent: outside review →
+  Plans G/H → gate-check → SDD → live E2E per plan).
+- Captured future (not v3): globe explosion sphere-node sprite redesign (owner "not fond of the
+  ugly circles") — noted in spec §8 + on #22's thread.
+
+**State:** All v2 surfaces + candy-cane live on :5173 (merged main). Next session starts at
+handoff-06. Generator bursts on demand: `python3 -m scripts.demo_traffic --rate 10 --duration 600`.
+
 ## 2026-07-12 (e) — Globe v2 COMPLETE: Lane 3 SHIPPED (recognition pulse + rings fix) — all three lanes live
 
 **Changes:**
