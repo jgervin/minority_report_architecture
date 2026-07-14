@@ -130,6 +130,58 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-13 (b) — Flat Map v3 COMPLETE: Plan G (map shell) + Plan H (building topology + pulses) both BUILT, merged, live-E2E'd
+
+**Changes (all `godview-prototype`, subagent-driven-development, TDD red→green, MERGE commits):**
+- **Plan G — Mapbox map shell** (PR #24 → `main@641c7f0`, 21 commits): new `/map` route — dark Mapbox
+  GL flat map (style built from the app's Tailwind hexes) + corner mini-globe (v1 dots picker driving
+  staged flyTo, `paused` while the map animates) + zoom-semantic venue markers. mapbox-gl@3.26.0 added.
+  Contracts A–E authored for Plan H.
+- **Plan H — building topology + pulses** (PR #27 → `main@3bc3ff7`, 13 commits, on top of G): at
+  building zoom the map shows 2D glyph markers (system/camera/display circles) + connector lines +
+  labels, plus animated Mapbox pulses — a far venue circle pulse and a building candy-cane
+  camera→system→display line pulse. New files: `src/data/buildingFeatures.ts`,
+  `src/data/mapPulseGeometry.ts`, `src/components/flatmap/mapPulseLayer.ts`; extended `FlatMapCanvas.tsx`
+  (building layers + shared-rAF pulse renderer) + `FlatMap.tsx` (building-tier wiring, panels-first).
+  Reuses the globe's pure pulse engines (`diffFarPulses`/`diffDeepPulses`/`deepPulsePath`) unchanged.
+- Both plans: full suite green (G 301, H 320), tsc/build/lint clean, per-task reviews + opus
+  whole-branch reviews (both READY TO MERGE), live Playwright E2E per plan.
+
+**Learnings / gotchas (both bugs below were caught ONLY by the live E2E — unit tests AND the opus
+whole-branch review missed both; this is the third+ confirmation of the E2E-mandatory rule):**
+- **Plan G WebGL-context leak:** `const webgl = hasWebGL()` unmemoized in `FlatMap.tsx`'s render body
+  leaked a WebGL context per re-render (usePolling every 5s + state churn) → "Too many active WebGL
+  contexts" → map + corner-globe contexts evicted (black map). Fix: `useState(() => hasWebGL())`
+  once-per-mount + a delta regression test (no new hasWebGL calls on re-render). The other two call
+  sites were already mount-scoped in `useEffect([])`.
+- **Plan H pulse opacity > 1 / dasharray undefined:** `requestAnimationFrame`'s first-frame timestamp
+  can PREDATE the `performance.now()` captured when the pulse was built (`startedAt`), so the first
+  `tick(now - startedAt)` gets a slightly NEGATIVE elapsedMs. `buildFarPulse` clamped only the upper
+  bound (`Math.min(elapsed/FAR,1)`) → `1 - t` exceeded 1.0 → Mapbox rejected the opacity, console-error
+  spam ×dozens. Same latent exposure in `buildBuildingPulse` (`candyCaneDash(negative)` → `PATTERNS[-1]`
+  = undefined dasharray). Fix: clamp `Math.max(elapsedMs, 0)` at the top of BOTH tick functions +
+  fake-map regression tests. **General rule: animation ticks must clamp elapsed to ≥0 — the rAF
+  timestamp and a synchronous `performance.now()` are the same clock but not monotonic across that
+  scheduling boundary.**
+- **mapbox-gl isolation holds end-to-end:** mapbox-gl is imported ONLY inside dynamically-imported
+  island modules (`mapboxImpl.ts`; `mapPulseLayer.ts` imports ZERO mapbox-gl — the `map` is passed in
+  as `any`). The **no-token production build ships zero mapbox bytes** (Vite DCE folds the token guard),
+  so the graceful `/map` fallback (and the whole `/globe` surface) are unaffected when `VITE_MAPBOX_TOKEN`
+  is absent. Token is client-publishable (`pk.*`) — kept in a gitignored `.env`, never committed.
+- Building-level device positioning is deterministic-fallback-ONLY (backend exposes no per-device
+  lat/lng) — `buildingLayout` fans systems/devices on meter-scale rings around the venue anchor.
+
+**State:** **Flat Map v3 COMPLETE — both surfaces live** (`/globe` 3D + `/map` 2D command map), no
+regressions. `godview-prototype main@3bc3ff7`. Owner's :5173 runs from the ff'd main checkout → picks up
+Plan H via Vite HMR (no npm install needed — mapbox-gl already installed with Plan G). For a fresh
+serve of `/map`: `VITE_MAPBOX_TOKEN` in `godview-prototype/.env` + restart. Pulse E2E recipe:
+`cd mras-ops && python3 scripts/demo_traffic.py --rate 24` (far pulses fire as venues' `last_run_created_at`
+advances; building pulses need building-tier zoom over a venue with a live deep run). Follow-up issues
+filed (godview-prototype): **#28** device NodePanel unreachable by glyph-click, **#29** per-type glyph
+icons (▣/◉/▤) computed but not wired into the label, **#30** `anchor` memo thrash (building setData
+re-fires every render), **#31** staged-flyTo 30-45s to building tier. Open follow-ups still standing from
+prior lanes: godview #12 #14(rest) #16 #18 #19 #20 #22 #25 #26; mras-ops #54 #57; mras-vision #38; TODO-11.
+
 ## 2026-07-13 (a) — Flat Map v3 PLANNING COMPLETE: spec outside-reviewed + amended, Plans G/H written + gate-checked (build-ready)
 
 **Changes (docs-only this entry; no code yet — all in `minority_report_architecture`):**
