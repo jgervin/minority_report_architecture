@@ -130,6 +130,21 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-16 — Flat Map v4 COMPLETE: Plan I (skeuomorphic icons + hub-tree + node-click) + Plan J (chrome/controls) both BUILT, merged, live-E2E'd + design-reviewed
+**Changes:**
+- `godview-prototype@d0900dd` — **Plan I** merged (PR #32). Replaced flat lucide device glyphs with skeuomorphic **Microsoft Fluent Emoji 3D** PNGs (MIT) keyed by kind (venue storefront / system AV-mixer / camera / display TV); health shown by a colored RING under each icon (full-color icons can't tint). Rewrote `buildingLayout` into a hub-centered **tree** — each device fans outward from ITS OWN system hub (`SYSTEM_RING_M 90`, `LEAF_M 110`, `LEAF_FAN π·0.72`) instead of one shared anchor ring, fixing the dense-venue "mandala" (Mall of America ~25 devices now readable). Node-click → device NodePanel; one-hop `flyTo` straight to building zoom (decoupled fetch from render).
+- `godview-prototype@f29a69c` — **Plan J** merged (PR #33). Chrome/controls on /map + /globe: shared `useRailCollapse` + `CollapseToggle` (left-rail collapse both pages); shared `PanelWrapper` (right-docked detail panel — fixes FlatMap's panel stacking below the map); corner mini-globe moved TOP-LEFT + 300↔225 size toggle (localStorage) + +/- zoom via new additive `GlobeCanvas.zoomCmd`; themed map +/- zoom buttons (top-right) via new additive `FlatMapCanvas.mapZoomCmd`; compact collapsible `MapLegend` (bottom-left) consuming Plan I's `ICON_URLS` PNGs + exported `ModeLegend.LEGEND` status key. `/globe` byte-identical on the GlobeCanvas contract (source-text regression test).
+- `minority_report_architecture@<this>` — SESSION_LOG entry.
+**Learnings (gotchas):**
+- **`createImageBitmap(svgBlob)` rejects in Chromium** — reliable cross-browser raster path is `<img>` element → 2D canvas → `getImageData()` (or `addImage` the HTMLImageElement for PNGs). A stub-based unit test gave a FALSE GREEN here (vacuous mock) — real icon raster is E2E-only.
+- Mapbox `text-opacity` is a **PAINT** property, not `layout` (silently ignored + "unknown property" warning if misplaced). `addImage(name, img, {sdf:false})` for full-color (non-SDF) icons; `icon-color` only tints SDF images.
+- **Tailwind JIT** only sees literal class strings — every arbitrary-value class (`lg:grid-cols-[40px_...]`, `h-[300px]`, `lg:right-[392px]`) must appear as a FULL literal chosen by a ternary; string-interpolated arbitrary values generate no CSS.
+- `mapbox-gl@3.26.0` types `attributionControl` as **boolean only** — `{ compact: true }` is a TS2322 (the planned tweak was dropped).
+- **Two z-10 chrome layers collide:** the right-docked panel (later in DOM) intercepts pointer events on the top-right map +/- buttons → dead while a panel is open; fix = shift buttons to `lg:right-[392px]` (left of the 380px panel) when `panel` is set.
+- Mapbox's **default logo is bottom-left** (no `logoPosition` set) — it collided with the bottom-left legend and read as a "stuck spinner"; lifted the legend to `bottom-10` to clear it (logo must stay visible per ToS).
+- `MapLegend` static-importing `iconImages.ts` pulls it into the main chunk (`[INEFFECTIVE_DYNAMIC_IMPORT]`); benign — `iconImages` is mapbox/three-free so the heavy 1.8MB mapbox chunk stays split and no-token isolation holds (follow-up: split into url-only + register modules).
+**State:** Flat Map **v4 lane COMPLETE** — both plans built via subagent-driven-development (TDD red→green throughout), whole-branch reviewed (Plan I: READY-WITH-FIXES→fixed; Plan J: READY), live Playwright E2E'd + a dedicated design-review pass (owner-locked gate), and merged to `godview-prototype@main`. Owner provisionally approved the Fluent 3D icons ("don't love them, keep for now"). Deferred polish/minors filed as GitHub follow-up issues (chrome polish, a11y aria-labels, iconImages split, world-tier venue clustering, test hardening, Plan I UUID-labels/edge-clip). Dev stack runs from main.
+
 ## 2026-07-13 (b) — Flat Map v3 COMPLETE: Plan G (map shell) + Plan H (building topology + pulses) both BUILT, merged, live-E2E'd
 
 **Changes (all `godview-prototype`, subagent-driven-development, TDD red→green, MERGE commits):**
