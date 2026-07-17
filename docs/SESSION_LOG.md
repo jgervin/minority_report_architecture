@@ -130,6 +130,11 @@ with open("alice.jpg","rb") as f:
 
 ## Session Entries (newest first)
 
+## 2026-07-16 (b) — GOD VIEW nav sidebar now collapsible (owner follow-up)
+**Changes:** `godview-prototype@9a7897c` (PR #40) — `Shell.tsx`: the desktop GOD VIEW nav `<aside>` now collapses to a 64px **icon-only rail** via a top toggle (lucide `PanelLeftClose`/`PanelLeftOpen`, `data-testid="nav-collapse-toggle"`); added a lucide icon per nav item (`LayoutDashboard`/`Activity`/`ScrollText`/`Server`/`Globe`/`Map`/`PenSquare`/`Rss`); collapsed hides labels + group headers + legacy badge (icon-only, `title` tooltip); state persists in `localStorage["godview.navCollapsed"]`. Desktop-only — the mobile hamburger nav overlay is unchanged. Grid `md:grid-cols-[220px_1fr]`↔`[64px_1fr]` (literal ternary).
+**Learnings:** The owner's original "collapse the left column" ask had landed on the /map + /globe **venue rail** (Plan J); this follow-up was the separate **Shell nav sidebar** — different panel. **Node 25 exposes a non-functional global `localStorage`** that shadows jsdom's, so persistence unit tests need `vi.stubGlobal` (real persistence E2E-verified instead). Light/dark in the owner's reference mockup was just the design presentation — app stays dark-only (owner confirmed).
+**State:** built TDD red→green, reviewed (Approved), live Playwright E2E all-pass (collapse → icon rail → reload-persist → navigate-while-collapsed), merged to `godview-prototype@main`.
+
 ## 2026-07-16 — Flat Map v4 COMPLETE: Plan I (skeuomorphic icons + hub-tree + node-click) + Plan J (chrome/controls) both BUILT, merged, live-E2E'd + design-reviewed
 **Changes:**
 - `godview-prototype@d0900dd` — **Plan I** merged (PR #32). Replaced flat lucide device glyphs with skeuomorphic **Microsoft Fluent Emoji 3D** PNGs (MIT) keyed by kind (venue storefront / system AV-mixer / camera / display TV); health shown by a colored RING under each icon (full-color icons can't tint). Rewrote `buildingLayout` into a hub-centered **tree** — each device fans outward from ITS OWN system hub (`SYSTEM_RING_M 90`, `LEAF_M 110`, `LEAF_FAN π·0.72`) instead of one shared anchor ring, fixing the dense-venue "mandala" (Mall of America ~25 devices now readable). Node-click → device NodePanel; one-hop `flyTo` straight to building zoom (decoupled fetch from render).
